@@ -18,6 +18,7 @@ import {
   estimateElo,
 } from '../lib/classification';
 import { AVAILABLE_ENGINES, DEFAULT_ENGINE_ID } from '../lib/engines';
+import { computeGameId, saveRun, type BenchmarkRun } from '../lib/benchmark';
 import type { AnalyzedMove, GameSummaryStats, PgnMetadata, EvalResult } from '../lib/types';
 
 const DEFAULT_DEPTH = 18;
@@ -40,6 +41,7 @@ interface AnalysisState {
   summary: GameSummaryStats | null;
   depth: number;
   engineId: string;
+  gameId: string | null;
 }
 
 const initialState: AnalysisState = {
@@ -55,11 +57,12 @@ const initialState: AnalysisState = {
   summary: null,
   depth: DEFAULT_DEPTH,
   engineId: DEFAULT_ENGINE_ID,
+  gameId: null,
 };
 
 // ── Actions ───────────────────────────────────────────────────────────────
 type Action =
-  | { type: 'GAME_LOADED'; metadata: PgnMetadata; fens: string[]; sanMoves: string[] }
+  | { type: 'GAME_LOADED'; metadata: PgnMetadata; fens: string[]; sanMoves: string[]; gameId: string }
   | { type: 'ANALYSIS_STARTED' }
   | { type: 'MOVE_ANALYZED'; move: AnalyzedMove }
   | { type: 'ANALYSIS_DONE'; summary: GameSummaryStats }
@@ -84,6 +87,7 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         analyzedCount: 0,
         totalMoves: action.sanMoves.length,
         summary: null,
+        gameId: action.gameId,
       };
 
     case 'ANALYSIS_STARTED':
@@ -128,6 +132,7 @@ interface AnalysisContextValue {
   reset: () => void;
   setDepth: (d: number) => void;
   setEngine: (id: string) => void;
+  saveCurrentAnalysis: () => BenchmarkRun | null;
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null);
@@ -139,6 +144,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
 
   const engineRef = useRef<StockfishService | null>(null);
   const abortRef = useRef(false);
+  const rawInputRef = useRef<string>('');
 
   // Re-create engine when engineId changes
   useEffect(() => {
@@ -155,6 +161,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const loadGame = useCallback((input: string) => {
     abortRef.current = true;
     const trimmed = input.trim();
+    rawInputRef.current = trimmed;
     let parsed: ReturnType<typeof parsePgn>;
     try {
       parsed = /^[rnbqkpRNBQKP1-8/]+ [wb]/.test(trimmed) && !trimmed.includes('\n')
@@ -169,6 +176,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       metadata: parsed.metadata,
       fens: parsed.fens,
       sanMoves: parsed.moves,
+      gameId: computeGameId(trimmed),
     });
   }, []);
 
@@ -272,8 +280,24 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const setDepth = useCallback((d: number) => dispatch({ type: 'SET_DEPTH', depth: d }), []);
   const setEngine = useCallback((id: string) => dispatch({ type: 'SET_ENGINE', engineId: id }), []);
 
+  const saveCurrentAnalysis = useCallback((): BenchmarkRun | null => {
+    const s = stateRef.current;
+    if (s.status !== 'done' || !s.summary || !s.metadata || s.moves.length === 0) return null;
+    const cfg = AVAILABLE_ENGINES.find((e) => e.id === s.engineId) ?? AVAILABLE_ENGINES[0];
+    return saveRun({
+      gameId: computeGameId(rawInputRef.current),
+      engineId: s.engineId,
+      engineName: cfg.name,
+      depth: s.depth,
+      timestamp: Date.now(),
+      moves: s.moves,
+      summary: s.summary,
+      metadata: { white: s.metadata.white, black: s.metadata.black, event: s.metadata.event },
+    });
+  }, []);
+
   return (
-    <AnalysisContext.Provider value={{ state, loadGame, startAnalysis, navigate, reset, setDepth, setEngine }}>
+    <AnalysisContext.Provider value={{ state, loadGame, startAnalysis, navigate, reset, setDepth, setEngine, saveCurrentAnalysis }}>
       {children}
     </AnalysisContext.Provider>
   );

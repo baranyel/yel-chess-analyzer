@@ -3,6 +3,7 @@ import { useAnalysis } from '../context/AnalysisContext';
 import { usePrefs } from '../context/PrefsContext';
 import { MoveList } from './MoveList';
 import { GameSummary } from './GameSummary';
+import { BenchmarkPanel } from './BenchmarkPanel';
 import { AVAILABLE_ENGINES } from '../lib/engines';
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
@@ -22,16 +23,18 @@ const EXAMPLE_PGN = `[Event "F/S Return Match"]
 36. Ra6+ Kc5 37. Ke1 Nf4 38. g3 Nxh3 39. Kd2 Kb5 40. Rd6 Kc5 41. Ra6 Nf2
 42. g4 Bd3 43. Re6 1-0`;
 
-type Tab = 'giris' | 'hamleler' | 'ayarlar' | 'ozet';
+type Tab = 'giris' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 
 export function RightPanel() {
-  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine } = useAnalysis();
+  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, saveCurrentAnalysis } = useAnalysis();
   const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
-  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId } = state;
+  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, gameId } = state;
 
   const [pgnText, setPgnText] = useState('');
   const [pgnError, setPgnError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('giris');
+  const [savedFeedback, setSavedFeedback] = useState(false);
+  const [benchmarkKey, setBenchmarkKey] = useState(0);
 
   const isDone = status === 'done';
   const isAnalyzing = status === 'analyzing';
@@ -54,11 +57,20 @@ export function RightPanel() {
     setTab('hamleler');
   };
 
+  const handleSave = () => {
+    const run = saveCurrentAnalysis();
+    if (!run) return;
+    setSavedFeedback(true);
+    setBenchmarkKey((k) => k + 1);
+    setTimeout(() => setSavedFeedback(false), 2000);
+  };
+
   const tabs: { id: Tab; label: string; disabled?: boolean }[] = [
-    { id: 'giris',    label: 'Giriş' },
-    { id: 'hamleler', label: 'Hamleler', disabled: !hasGame },
-    { id: 'ayarlar',  label: 'Ayarlar' },
-    { id: 'ozet',     label: 'Özet', disabled: !isDone },
+    { id: 'giris',     label: 'Giriş' },
+    { id: 'hamleler',  label: 'Hamleler', disabled: !hasGame },
+    { id: 'ayarlar',   label: 'Ayarlar' },
+    { id: 'ozet',      label: 'Özet', disabled: !isDone },
+    { id: 'benchmark', label: 'Benchmark' },
   ];
 
   return (
@@ -375,11 +387,20 @@ export function RightPanel() {
             Analiz tamamlandığında burada özet görünür.
           </div>
         )}
+
+        {/* ── Benchmark ────────────────────────────────────────────── */}
+        {tab === 'benchmark' && (
+          <BenchmarkPanel
+            key={benchmarkKey}
+            gameId={gameId}
+            onRunsChange={() => setBenchmarkKey((k) => k + 1)}
+          />
+        )}
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
       {(status === 'ready' || status === 'done') && (
-        <div className="shrink-0 border-t border-base p-3">
+        <div className="shrink-0 border-t border-base p-3 space-y-2">
           <button
             onClick={handleStartAnalysis}
             className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors"
@@ -387,6 +408,15 @@ export function RightPanel() {
           >
             {status === 'done' ? 'Yeniden Analiz Et' : 'Analizi Başlat'}
           </button>
+          {isDone && (
+            <button
+              onClick={handleSave}
+              disabled={savedFeedback}
+              className="w-full py-2 rounded-lg text-xs font-semibold border border-base hover-surface transition-colors text-muted disabled:text-accent disabled:border-accent"
+            >
+              {savedFeedback ? '✓ Kaydedildi!' : 'Benchmark\'e Kaydet'}
+            </button>
+          )}
         </div>
       )}
 
