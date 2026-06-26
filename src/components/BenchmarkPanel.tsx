@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   loadRunsForGame,
   deleteRun,
@@ -94,21 +94,21 @@ function ConfigGroup({
                 <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Tutarlılık Skoru</span>
               </div>
               <ScoreBar score={report.consistencyScore} />
-              <div className="flex flex-col gap-1 text-[10px] text-muted mt-1.5">
+              <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-[10px] mt-1.5">
                 {([
                   ['Sınıf uyumu',      `${report.classificationAgreementPct}%`],
                   ['Eval sapması',     `±${report.avgEvalStdDevCp}cp`],
-                  ['ACPL sapması (B)', `±${report.acplStdDev.white}`],
-                  ['ACPL sapması (S)', `±${report.acplStdDev.black}`],
-                  ['İsabet sap. (B)',  `±${report.accuracyStdDev.white}%`],
-                  ['İsabet sap. (S)',  `±${report.accuracyStdDev.black}%`],
-                  ['Rating sap. (B)',  `±${report.eloStdDev.white}`],
-                  ['Rating sap. (S)',  `±${report.eloStdDev.black}`],
-                ] as [string, string][]).map(([label, value]) => (
-                  <div key={label} className="flex justify-between items-baseline gap-2">
-                    <span className="shrink-0">{label}</span>
-                    <span className="text-base font-semibold text-right">{value}</span>
-                  </div>
+                  ['ACPL sap. (B)',    `±${report.acplStdDev.white}`],
+                  ['ACPL sap. (S)',    `±${report.acplStdDev.black}`],
+                  ['İsabet sap. (B)', `±${report.accuracyStdDev.white}%`],
+                  ['İsabet sap. (S)', `±${report.accuracyStdDev.black}%`],
+                  ['Rating sap. (B)', `±${report.eloStdDev.white}`],
+                  ['Rating sap. (S)', `±${report.eloStdDev.black}`],
+                ] as [string, string][]).map(([label, value], i) => (
+                  <React.Fragment key={i}>
+                    <span className="text-muted">{label}</span>
+                    <span className="text-base font-semibold">{value}</span>
+                  </React.Fragment>
                 ))}
               </div>
             </div>
