@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import type { Plugin } from 'vite'
+import { readFileSync } from 'node:fs'
+
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
 // Dev-mode middleware: serve .wasm files with the correct MIME type so that
 // WebAssembly.instantiateStreaming() doesn't reject the response.
@@ -20,6 +23,7 @@ const wasmMimePlugin: Plugin = {
 export default defineConfig({
   // On GitHub Pages the site lives at /repo-name/, set via VITE_BASE_URL in CI.
   base: process.env.VITE_BASE_URL ?? '/',
+  define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [react(), tailwindcss(), wasmMimePlugin],
   optimizeDeps: {
     exclude: ['stockfish'],

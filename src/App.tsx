@@ -80,7 +80,9 @@ export default function App() {
             Hata — Sıfırla
           </button>
         ) : (
-          <div className="w-24 shrink-0 hidden md:block" />
+          <span className="shrink-0 hidden md:block text-[10px] text-faint font-mono select-none">
+            v{__APP_VERSION__}
+          </span>
         )}
       </header>
 
