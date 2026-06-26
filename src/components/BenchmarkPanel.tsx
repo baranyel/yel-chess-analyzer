@@ -38,11 +38,13 @@ function RunRow({ run, onDelete }: { run: BenchmarkRun; onDelete: () => void }) 
         <span className="text-muted">
           B <span className="text-base font-semibold">{run.summary.white.accuracy}%</span>
           <span className="text-faint ml-1">{run.summary.white.acpl}acpl</span>
+          <span className="text-faint ml-1">~{run.summary.white.estimatedElo}</span>
         </span>
         <span className="text-faint">·</span>
         <span className="text-muted">
           S <span className="text-base font-semibold">{run.summary.black.accuracy}%</span>
           <span className="text-faint ml-1">{run.summary.black.acpl}acpl</span>
+          <span className="text-faint ml-1">~{run.summary.black.estimatedElo}</span>
         </span>
       </div>
       <button
