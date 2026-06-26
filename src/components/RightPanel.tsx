@@ -387,7 +387,7 @@ export function RightPanel() {
                     <span className="text-faint ml-1">— daha fazlası daha çok CPU çekirdeği kullanır</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1">
-                    {[1, 2, 4, 8].map((n) => (
+                    {([1, 2, 4, 8, 12, 16] as const).map((n) => (
                       <button
                         key={n}
                         onClick={() => setWorkerCount(n)}
@@ -400,7 +400,7 @@ export function RightPanel() {
                         ].join(' ')}
                         style={workerCount === n ? { borderColor: 'var(--accent)' } : {}}
                       >
-                        {n === 1 ? '×1' : `×${n}`}
+                        ×{n}
                       </button>
                     ))}
                   </div>
@@ -413,7 +413,7 @@ export function RightPanel() {
                     <span className="text-faint ml-1">— transposition table boyutu</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1">
-                    {[32, 64, 128, 256].map((mb) => (
+                    {([32, 64, 128, 256, 512, 1024] as const).map((mb) => (
                       <button
                         key={mb}
                         onClick={() => setHashMb(mb)}
@@ -426,11 +426,23 @@ export function RightPanel() {
                         ].join(' ')}
                         style={hashMb === mb ? { borderColor: 'var(--accent)' } : {}}
                       >
-                        {mb}MB
+                        {mb >= 1024 ? `${mb / 1024}GB` : `${mb}MB`}
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {/* Uyarı */}
+                {(workerCount >= 8 || hashMb >= 512) && (
+                  <div className="flex items-start gap-2 px-2.5 py-2 rounded border text-[10px]"
+                    style={{ borderColor: 'var(--warning, #f59e0b)', backgroundColor: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)' }}
+                  >
+                    <span style={{ color: 'var(--warning, #f59e0b)' }} className="shrink-0 mt-px">⚠</span>
+                    <span className="text-muted">
+                      Bu seçenek sisteminizi zorlayabilir! Yavaş cihazlarda sekme donabilir veya tarayıcı bellek hatası verebilir.
+                    </span>
+                  </div>
+                )}
               </div>
             </section>
           </div>
