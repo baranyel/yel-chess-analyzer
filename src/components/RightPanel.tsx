@@ -4,6 +4,7 @@ import { usePrefs } from '../context/PrefsContext';
 import { MoveList } from './MoveList';
 import { GameSummary } from './GameSummary';
 import { BenchmarkPanel } from './BenchmarkPanel';
+import { AccountPanel } from './AccountPanel';
 import { AVAILABLE_ENGINES } from '../lib/engines';
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
@@ -23,7 +24,7 @@ const EXAMPLE_PGN = `[Event "F/S Return Match"]
 36. Ra6+ Kc5 37. Ke1 Nf4 38. g3 Nxh3 39. Kd2 Kb5 40. Rd6 Kc5 41. Ra6 Nf2
 42. g4 Bd3 43. Re6 1-0`;
 
-type Tab = 'giris' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
+type Tab = 'giris' | 'hesap' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 
 export function RightPanel() {
   const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis } = useAnalysis();
@@ -67,6 +68,7 @@ export function RightPanel() {
 
   const tabs: { id: Tab; label: string; disabled?: boolean }[] = [
     { id: 'giris',     label: 'Giriş' },
+    { id: 'hesap',     label: 'Hesap' },
     { id: 'hamleler',  label: 'Hamleler', disabled: !hasGame },
     { id: 'ayarlar',   label: 'Ayarlar' },
     { id: 'ozet',      label: 'Özet', disabled: !isDone },
@@ -147,6 +149,16 @@ export function RightPanel() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Hesap ────────────────────────────────────────────────── */}
+        {tab === 'hesap' && (
+          <AccountPanel
+            onGameLoad={(pgn) => {
+              loadGame(pgn);
+              setTab('hamleler');
+            }}
+          />
         )}
 
         {/* ── Hamleler ─────────────────────────────────────────────── */}
