@@ -222,10 +222,22 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     for (let i = 0; i < sanMoves.length; i++) {
       if (abortRef.current) return;
 
-      await analyzePos(i + 1);
-      if (abortRef.current) return;
-
       const move = chess.move(sanMoves[i]);
+
+      // Skip engine call for terminal positions (checkmate / stalemate / etc.)
+      if (chess.isGameOver()) {
+        let terminalEval: EvalResult;
+        if (chess.isCheckmate()) {
+          // The side that just moved delivered checkmate — positive for white, negative for black
+          terminalEval = { type: 'mate', value: move.color === 'w' ? 1 : -1 };
+        } else {
+          terminalEval = { type: 'cp', value: 0 };
+        }
+        evalCache[i + 1] = terminalEval;
+      } else {
+        await analyzePos(i + 1);
+        if (abortRef.current) return;
+      }
       const color: 'w' | 'b' = move.color;
 
       const evalBefore = evalCache[i];   // eval at position before move (best line)

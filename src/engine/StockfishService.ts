@@ -108,7 +108,18 @@ export class StockfishService {
     // bestmove — analysis complete for this position
     if (line.startsWith('bestmove') && this.analysisCallback) {
       const line1 = this.bestByRank.get(1);
-      if (!line1) return;
+      // Terminal position (checkmate/stalemate): engine returns "bestmove (none)" with no info lines.
+      if (!line1) {
+        this.analysisCallback({
+          fen: this.currentFen,
+          eval: { type: 'mate', value: 0 },
+          bestMove: '',
+          alternatives: [],
+          alternativeEvals: [],
+          depth: 0,
+        });
+        return;
+      }
 
       const move = line.split(' ')[1] ?? '';
       const side = fenSide(this.currentFen);
