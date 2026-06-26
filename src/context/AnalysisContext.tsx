@@ -3,7 +3,6 @@ import React, {
   useContext,
   useReducer,
   useRef,
-  useEffect,
   useCallback,
 } from 'react';
 import { Chess } from 'chess.js';
@@ -22,6 +21,8 @@ import { computeGameId, saveRun, type BenchmarkRun } from '../lib/benchmark';
 import type { AnalyzedMove, GameSummaryStats, PgnMetadata, EvalResult } from '../lib/types';
 
 const DEFAULT_DEPTH = 18;
+const DEFAULT_WORKER_COUNT = 1;
+const DEFAULT_HASH_MB = 64;
 const MULTI_PV = 3;
 
 // ── Status ────────────────────────────────────────────────────────────────
@@ -32,15 +33,17 @@ interface AnalysisState {
   status: AnalysisStatus;
   error: string | null;
   metadata: PgnMetadata | null;
-  moves: AnalyzedMove[];       // analyzed moves (grows during analysis)
-  sanMoves: string[];           // all SAN moves from PGN (available after 'ready')
-  fens: string[];               // fen[0]=start, fen[i]=after move i
+  moves: AnalyzedMove[];
+  sanMoves: string[];
+  fens: string[];
   currentIndex: number;
   analyzedCount: number;
   totalMoves: number;
   summary: GameSummaryStats | null;
   depth: number;
   engineId: string;
+  workerCount: number;
+  hashMb: number;
   gameId: string | null;
 }
 
@@ -57,6 +60,8 @@ const initialState: AnalysisState = {
   summary: null,
   depth: DEFAULT_DEPTH,
   engineId: DEFAULT_ENGINE_ID,
+  workerCount: DEFAULT_WORKER_COUNT,
+  hashMb: DEFAULT_HASH_MB,
   gameId: null,
 };
 
@@ -70,6 +75,8 @@ type Action =
   | { type: 'NAVIGATE'; index: number }
   | { type: 'SET_DEPTH'; depth: number }
   | { type: 'SET_ENGINE'; engineId: string }
+  | { type: 'SET_WORKER_COUNT'; count: number }
+  | { type: 'SET_HASH_MB'; mb: number }
   | { type: 'RESET' };
 
 function reducer(state: AnalysisState, action: Action): AnalysisState {
@@ -115,8 +122,20 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
     case 'SET_ENGINE':
       return { ...state, engineId: action.engineId };
 
+    case 'SET_WORKER_COUNT':
+      return { ...state, workerCount: action.count };
+
+    case 'SET_HASH_MB':
+      return { ...state, hashMb: action.mb };
+
     case 'RESET':
-      return { ...initialState, depth: state.depth, engineId: state.engineId };
+      return {
+        ...initialState,
+        depth: state.depth,
+        engineId: state.engineId,
+        workerCount: state.workerCount,
+        hashMb: state.hashMb,
+      };
 
     default:
       return state;
@@ -132,6 +151,8 @@ interface AnalysisContextValue {
   reset: () => void;
   setDepth: (d: number) => void;
   setEngine: (id: string) => void;
+  setWorkerCount: (n: number) => void;
+  setHashMb: (mb: number) => void;
   saveCurrentAnalysis: () => BenchmarkRun | null;
 }
 
@@ -142,22 +163,12 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const engineRef = useRef<StockfishService | null>(null);
   const abortRef = useRef(false);
   const rawInputRef = useRef<string>('');
+  // Tracks workers created during the current analysis so reset() can terminate them
+  const activeWorkersRef = useRef<StockfishService[]>([]);
 
-  // Re-create engine when engineId changes
-  useEffect(() => {
-    engineRef.current?.terminate();
-    const cfg = AVAILABLE_ENGINES.find((e) => e.id === state.engineId) ?? AVAILABLE_ENGINES[0];
-    engineRef.current = new StockfishService(import.meta.env.BASE_URL + cfg.workerPath);
-    return () => {
-      engineRef.current?.terminate();
-      engineRef.current = null;
-    };
-  }, [state.engineId]);
-
-  // ── loadGame: parse PGN/FEN, transition to 'ready' ──────────────────
+  // ── loadGame ─────────────────────────────────────────────────────────
   const loadGame = useCallback((input: string) => {
     abortRef.current = true;
     const trimmed = input.trim();
@@ -180,117 +191,149 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // ── startAnalysis: run Stockfish on every position ───────────────────
+  // ── startAnalysis: parallel worker pool ──────────────────────────────
   const startAnalysis = useCallback(async () => {
-    const { fens, sanMoves, depth } = stateRef.current;
+    const { fens, sanMoves, depth, engineId, workerCount, hashMb } = stateRef.current;
     if (!fens.length || !sanMoves.length) return;
 
     abortRef.current = false;
     dispatch({ type: 'ANALYSIS_STARTED' });
 
-    const engine = engineRef.current;
-    if (!engine) {
-      dispatch({ type: 'ERROR', message: 'Motor başlatılamadı.' });
-      return;
-    }
+    const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0];
+    const workerPath = import.meta.env.BASE_URL + cfg.workerPath;
 
-    const chess = new Chess();
+    // Create N workers
+    const workers = Array.from({ length: workerCount }, () => new StockfishService(workerPath, hashMb));
+    activeWorkersRef.current = workers;
+
     const evalCache: (EvalResult | null)[] = new Array(fens.length).fill(null);
     const bestMoves: (string | null)[] = new Array(fens.length).fill(null);
     const altMoves: string[][] = new Array(fens.length).fill([]);
     const altEvals: (EvalResult[])[] = new Array(fens.length).fill([]);
 
-    const analyzePos = (idx: number): Promise<void> =>
-      new Promise((resolve) => {
-        if (abortRef.current) { resolve(); return; }
-        engine.analyze(fens[idx], depth, MULTI_PV, (result) => {
-          if (abortRef.current) { resolve(); return; }
-          evalCache[idx] = result.eval;
-          bestMoves[idx] = result.bestMove;
-          altMoves[idx] = result.alternatives;
-          altEvals[idx] = result.alternativeEvals;
-          resolve();
-        });
-      });
+    // Pre-pass: replay moves to detect terminal positions and collect move metadata
+    const moveData: Array<{ color: 'w' | 'b'; uci: string }> = [];
+    {
+      const chessPrepass = new Chess();
+      for (let i = 0; i < sanMoves.length; i++) {
+        const m = chessPrepass.move(sanMoves[i]);
+        moveData.push({ color: m.color, uci: m.lan ?? '' });
+        if (chessPrepass.isGameOver()) {
+          evalCache[i + 1] = chessPrepass.isCheckmate()
+            ? { type: 'mate', value: m.color === 'w' ? 1 : -1 }
+            : { type: 'cp', value: 0 };
+        }
+      }
+    }
 
-    // Analyze starting position
-    await analyzePos(0);
-    if (abortRef.current) return;
+    // Positions that need engine analysis (non-terminal)
+    const pendingIndices = fens.map((_, i) => i).filter((i) => evalCache[i] === null);
 
+    // Dispatch moves in order as adjacent pair results become available
+    let nextDispatch = 0;
     const analyzedMoves: AnalyzedMove[] = [];
 
-    for (let i = 0; i < sanMoves.length; i++) {
-      if (abortRef.current) return;
+    const tryDispatch = () => {
+      while (nextDispatch < sanMoves.length) {
+        const i = nextDispatch;
+        if (evalCache[i] === null || evalCache[i + 1] === null) break;
 
-      const move = chess.move(sanMoves[i]);
+        const { color, uci } = moveData[i];
+        const evalBefore = evalCache[i];
+        const evalAfter  = evalCache[i + 1];
 
-      // Skip engine call for terminal positions (checkmate / stalemate / etc.)
-      if (chess.isGameOver()) {
-        let terminalEval: EvalResult;
-        if (chess.isCheckmate()) {
-          // The side that just moved delivered checkmate — positive for white, negative for black
-          terminalEval = { type: 'mate', value: move.color === 'w' ? 1 : -1 };
-        } else {
-          terminalEval = { type: 'cp', value: 0 };
+        let cpLoss = 0;
+        if (evalBefore && evalAfter) cpLoss = computeCpLoss(evalBefore, evalAfter, color);
+
+        let secondBestCpLoss = 9999;
+        const alt2Eval = altEvals[i]?.[0] ?? null;
+        if (evalBefore && alt2Eval) {
+          secondBestCpLoss = computeSecondBestCpLoss(evalBefore, alt2Eval, color);
         }
-        evalCache[i + 1] = terminalEval;
-      } else {
-        await analyzePos(i + 1);
+
+        const classification = classifyMove(cpLoss, secondBestCpLoss, uci, bestMoves[i]);
+
+        const analyzedMove: AnalyzedMove = {
+          moveNumber: Math.floor(i / 2) + 1,
+          color,
+          san: sanMoves[i],
+          uci,
+          fenBefore: fens[i],
+          fenAfter:  fens[i + 1],
+          evalBefore,
+          evalAfter,
+          bestMove: bestMoves[i],
+          bestEval: evalBefore,
+          alternatives: altMoves[i] ?? [],
+          alternativeEvals: altEvals[i] ?? [],
+          classification,
+          cpLoss,
+          secondBestCpLoss,
+        };
+
+        analyzedMoves.push(analyzedMove);
+        dispatch({ type: 'MOVE_ANALYZED', move: analyzedMove });
+        nextDispatch++;
+      }
+    };
+
+    // Run pending positions through the worker pool
+    await new Promise<void>((resolveAll) => {
+      const total = pendingIndices.length;
+      if (total === 0) { resolveAll(); return; }
+
+      let completed = 0;
+      let queueIdx = 0;
+
+      const runNext = (workerIdx: number) => {
         if (abortRef.current) return;
-      }
-      const color: 'w' | 'b' = move.color;
+        if (queueIdx >= pendingIndices.length) return;
 
-      const evalBefore = evalCache[i];   // eval at position before move (best line)
-      const evalAfter  = evalCache[i + 1]; // eval after played move
+        const posIdx = pendingIndices[queueIdx++];
+        workers[workerIdx].analyze(fens[posIdx], depth, MULTI_PV, (result) => {
+          if (abortRef.current) return;
 
-      // cpLoss: how much worse the played move is vs the best move
-      // evalBefore = best achievable outcome from position i
-      // evalAfter  = actual outcome (opponent's turn, white POV)
-      let cpLoss = 0;
-      if (evalBefore && evalAfter) {
-        cpLoss = computeCpLoss(evalBefore, evalAfter, color);
-      }
+          evalCache[posIdx] = result.eval;
+          bestMoves[posIdx] = result.bestMove;
+          altMoves[posIdx]  = result.alternatives;
+          altEvals[posIdx]  = result.alternativeEvals;
 
-      // secondBestCpLoss: how much worse the 2nd-best alternative is vs best
-      let secondBestCpLoss = 9999;
-      const alt2Eval = altEvals[i]?.[0] ?? null; // 2nd-best line eval at position i
-      if (evalBefore && alt2Eval) {
-        // alt2Eval is the eval if the 2nd-best move had been played (from white POV)
-        secondBestCpLoss = computeSecondBestCpLoss(evalBefore, alt2Eval, color);
-      }
+          tryDispatch();
 
-      const uci = move.lan ?? '';
-      const classification = classifyMove(cpLoss, secondBestCpLoss, uci, bestMoves[i]);
-
-      const analyzedMove: AnalyzedMove = {
-        moveNumber: Math.floor(i / 2) + 1,
-        color,
-        san: sanMoves[i],
-        uci,
-        fenBefore: fens[i],
-        fenAfter:  fens[i + 1],
-        evalBefore,
-        evalAfter,
-        bestMove: bestMoves[i],
-        bestEval: evalBefore,
-        alternatives: altMoves[i] ?? [],
-        alternativeEvals: altEvals[i] ?? [],
-        classification,
-        cpLoss,
-        secondBestCpLoss,
+          if (++completed >= total) {
+            resolveAll();
+          } else {
+            runNext(workerIdx);
+          }
+        });
       };
 
-      analyzedMoves.push(analyzedMove);
-      dispatch({ type: 'MOVE_ANALYZED', move: analyzedMove });
-    }
+      // Seed each worker with its first position
+      for (let w = 0; w < workerCount && w < pendingIndices.length; w++) {
+        runNext(w);
+      }
+    });
+
+    workers.forEach((w) => w.terminate());
+    activeWorkersRef.current = [];
+
+    if (abortRef.current) return;
 
     dispatch({ type: 'ANALYSIS_DONE', summary: buildSummary(analyzedMoves) });
   }, []);
 
-  const navigate = useCallback((index: number) => dispatch({ type: 'NAVIGATE', index }), []);
-  const reset    = useCallback(() => { abortRef.current = true; dispatch({ type: 'RESET' }); }, []);
-  const setDepth = useCallback((d: number) => dispatch({ type: 'SET_DEPTH', depth: d }), []);
+  const navigate  = useCallback((index: number) => dispatch({ type: 'NAVIGATE', index }), []);
+  const setDepth  = useCallback((d: number)  => dispatch({ type: 'SET_DEPTH', depth: d }), []);
   const setEngine = useCallback((id: string) => dispatch({ type: 'SET_ENGINE', engineId: id }), []);
+  const setWorkerCount = useCallback((n: number)  => dispatch({ type: 'SET_WORKER_COUNT', count: n }), []);
+  const setHashMb      = useCallback((mb: number) => dispatch({ type: 'SET_HASH_MB', mb }), []);
+
+  const reset = useCallback(() => {
+    abortRef.current = true;
+    activeWorkersRef.current.forEach((w) => w.terminate());
+    activeWorkersRef.current = [];
+    dispatch({ type: 'RESET' });
+  }, []);
 
   const saveCurrentAnalysis = useCallback((): BenchmarkRun | null => {
     const s = stateRef.current;
@@ -309,7 +352,10 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AnalysisContext.Provider value={{ state, loadGame, startAnalysis, navigate, reset, setDepth, setEngine, saveCurrentAnalysis }}>
+    <AnalysisContext.Provider value={{
+      state, loadGame, startAnalysis, navigate, reset,
+      setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis,
+    }}>
       {children}
     </AnalysisContext.Provider>
   );
@@ -328,15 +374,15 @@ function buildSummary(moves: AnalyzedMove[]): GameSummaryStats {
     const count = (cls: string) => ms.filter((m) => m.classification === cls).length;
     const acpl = computeAcpl(ms);
     return {
-      kusursuz:  count('kusursuz'),
-      muhtesem:  count('muhtesem'),
-      best:      count('best'),
-      excellent: count('excellent'),
-      good:      count('good'),
-      inaccuracy:count('inaccuracy'),
-      mistake:   count('mistake'),
-      blunder:   count('blunder'),
-      accuracy:  computeAccuracy(ms),
+      kusursuz:   count('kusursuz'),
+      muhtesem:   count('muhtesem'),
+      best:       count('best'),
+      excellent:  count('excellent'),
+      good:       count('good'),
+      inaccuracy: count('inaccuracy'),
+      mistake:    count('mistake'),
+      blunder:    count('blunder'),
+      accuracy:   computeAccuracy(ms),
       acpl,
       estimatedElo: estimateElo(acpl),
     };

@@ -45,7 +45,7 @@ export class StockfishService {
   private analysisCallback: AnalysisCallback | null = null;
   private pendingAnalysis: { fen: string; depth: number; multiPv: number } | null = null;
 
-  constructor(enginePath: string) {
+  constructor(enginePath: string, hashMb = 64) {
     // Use the stockfish JS file directly as the worker (no Vite-managed wrapper).
     // This avoids Vite's restriction on importing JS files from /public as modules.
     this.worker = new Worker(enginePath);
@@ -57,7 +57,7 @@ export class StockfishService {
 
     // UCI initialisation sequence
     this.send('uci');
-    this.send('setoption name Hash value 64');
+    this.send(`setoption name Hash value ${hashMb}`);
     this.send('setoption name Threads value 1');
     this.send('isready');
   }

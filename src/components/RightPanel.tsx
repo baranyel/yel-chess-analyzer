@@ -26,9 +26,9 @@ const EXAMPLE_PGN = `[Event "F/S Return Match"]
 type Tab = 'giris' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 
 export function RightPanel() {
-  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, saveCurrentAnalysis } = useAnalysis();
+  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis } = useAnalysis();
   const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
-  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, gameId } = state;
+  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId } = state;
 
   const [pgnText, setPgnText] = useState('');
   const [pgnError, setPgnError] = useState<string | null>(null);
@@ -370,6 +370,67 @@ export function RightPanel() {
               <div className="flex justify-between text-[10px] text-faint mt-1">
                 <span>8 (hızlı)</span>
                 <span>24 (derin)</span>
+              </div>
+            </section>
+
+            {/* Performans */}
+            <section>
+              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
+                Performans
+              </label>
+
+              <div className="space-y-3">
+                {/* Worker sayısı */}
+                <div>
+                  <div className="text-[10px] text-muted mb-1.5">
+                    Paralel İşçi Sayısı
+                    <span className="text-faint ml-1">— daha fazlası daha çok CPU çekirdeği kullanır</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[1, 2, 4, 8].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setWorkerCount(n)}
+                        disabled={isAnalyzing}
+                        className={[
+                          'py-1.5 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                          workerCount === n
+                            ? 'border-accent bg-accent-dim text-accent'
+                            : 'border-base text-muted hover-surface',
+                        ].join(' ')}
+                        style={workerCount === n ? { borderColor: 'var(--accent)' } : {}}
+                      >
+                        {n === 1 ? '×1' : `×${n}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hash belleği */}
+                <div>
+                  <div className="text-[10px] text-muted mb-1.5">
+                    Hash Belleği
+                    <span className="text-faint ml-1">— transposition table boyutu</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[32, 64, 128, 256].map((mb) => (
+                      <button
+                        key={mb}
+                        onClick={() => setHashMb(mb)}
+                        disabled={isAnalyzing}
+                        className={[
+                          'py-1.5 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                          hashMb === mb
+                            ? 'border-accent bg-accent-dim text-accent'
+                            : 'border-base text-muted hover-surface',
+                        ].join(' ')}
+                        style={hashMb === mb ? { borderColor: 'var(--accent)' } : {}}
+                      >
+                        {mb}MB
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </section>
           </div>
