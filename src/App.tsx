@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { useAnalysis } from './context/AnalysisContext';
 import { usePrefs } from './context/PrefsContext';
@@ -42,7 +42,14 @@ export default function App() {
   const currentEval = currentMove?.evalAfter ?? (moves[0]?.evalBefore ?? null);
   const boardMoveCount = hasGame ? fens.length - 1 : 0;
 
-  const boardSize = Math.round(BASE_BOARD_SIZE * (prefs.boardSize / 100));
+  // Cap board size so it always fits on screen (padding 12px each side + eval bar ~34px)
+  const [maxBoard, setMaxBoard] = useState(() => window.innerWidth - 72);
+  useEffect(() => {
+    const handler = () => setMaxBoard(window.innerWidth - 72);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  const boardSize = Math.min(Math.round(BASE_BOARD_SIZE * (prefs.boardSize / 100)), maxBoard);
   const boardColor = BOARD_COLORS.find((c) => c.id === prefs.boardColorId) ?? BOARD_COLORS[0];
   const pieceSet = PIECE_SETS.find((p) => p.id === prefs.pieceSetId) ?? PIECE_SETS[0];
 

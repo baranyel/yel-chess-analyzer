@@ -94,39 +94,22 @@ function ConfigGroup({
                 <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Tutarlılık Skoru</span>
               </div>
               <ScoreBar score={report.consistencyScore} />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted mt-1.5">
-                <div>
-                  Sınıf uyumu
-                  <span className="text-base font-semibold ml-1">{report.classificationAgreementPct}%</span>
-                </div>
-                <div>
-                  Eval sapması
-                  <span className="text-base font-semibold ml-1">±{report.avgEvalStdDevCp}cp</span>
-                </div>
-                <div>
-                  ACPL sapması (B)
-                  <span className="text-base font-semibold ml-1">±{report.acplStdDev.white}</span>
-                </div>
-                <div>
-                  ACPL sapması (S)
-                  <span className="text-base font-semibold ml-1">±{report.acplStdDev.black}</span>
-                </div>
-                <div>
-                  İsabet sapması (B)
-                  <span className="text-base font-semibold ml-1">±{report.accuracyStdDev.white}%</span>
-                </div>
-                <div>
-                  İsabet sapması (S)
-                  <span className="text-base font-semibold ml-1">±{report.accuracyStdDev.black}%</span>
-                </div>
-                <div>
-                  Rating sapması (B)
-                  <span className="text-base font-semibold ml-1">±{report.eloStdDev.white}</span>
-                </div>
-                <div>
-                  Rating sapması (S)
-                  <span className="text-base font-semibold ml-1">±{report.eloStdDev.black}</span>
-                </div>
+              <div className="flex flex-col gap-1 text-[10px] text-muted mt-1.5">
+                {([
+                  ['Sınıf uyumu',      `${report.classificationAgreementPct}%`],
+                  ['Eval sapması',     `±${report.avgEvalStdDevCp}cp`],
+                  ['ACPL sapması (B)', `±${report.acplStdDev.white}`],
+                  ['ACPL sapması (S)', `±${report.acplStdDev.black}`],
+                  ['İsabet sap. (B)',  `±${report.accuracyStdDev.white}%`],
+                  ['İsabet sap. (S)',  `±${report.accuracyStdDev.black}%`],
+                  ['Rating sap. (B)',  `±${report.eloStdDev.white}`],
+                  ['Rating sap. (S)',  `±${report.eloStdDev.black}`],
+                ] as [string, string][]).map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-baseline gap-2">
+                    <span className="shrink-0">{label}</span>
+                    <span className="text-base font-semibold text-right">{value}</span>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
