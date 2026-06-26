@@ -5,6 +5,7 @@ import { MoveList } from './MoveList';
 import { GameSummary } from './GameSummary';
 import { BenchmarkPanel } from './BenchmarkPanel';
 import { AccountPanel } from './AccountPanel';
+import { PhaseBreakdown } from './PhaseBreakdown';
 import { AVAILABLE_ENGINES } from '../lib/engines';
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
@@ -479,6 +480,7 @@ export function RightPanel() {
         {tab === 'ozet' && isDone && summary && metadata && (
           <div className="p-3 overflow-y-auto flex-1">
             <GameSummary summary={summary} metadata={metadata} />
+            <PhaseBreakdown moves={moves} metadata={metadata} />
           </div>
         )}
 
