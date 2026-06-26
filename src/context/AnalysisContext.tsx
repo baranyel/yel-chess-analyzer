@@ -18,6 +18,7 @@ import {
 } from '../lib/classification';
 import { AVAILABLE_ENGINES, DEFAULT_ENGINE_ID } from '../lib/engines';
 import { computeGameId, saveRun, type BenchmarkRun } from '../lib/benchmark';
+import { saveAnalysisRecord, type AnalysisRecord } from '../lib/analysisHistory';
 import type { AnalyzedMove, GameSummaryStats, PgnMetadata, EvalResult } from '../lib/types';
 
 const DEFAULT_DEPTH = 18;
@@ -77,6 +78,7 @@ type Action =
   | { type: 'SET_ENGINE'; engineId: string }
   | { type: 'SET_WORKER_COUNT'; count: number }
   | { type: 'SET_HASH_MB'; mb: number }
+  | { type: 'RESTORE_ANALYSIS'; record: AnalysisRecord }
   | { type: 'RESET' };
 
 function reducer(state: AnalysisState, action: Action): AnalysisState {
@@ -128,6 +130,24 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
     case 'SET_HASH_MB':
       return { ...state, hashMb: action.mb };
 
+    case 'RESTORE_ANALYSIS': {
+      const r = action.record;
+      return {
+        ...state,
+        status: 'done',
+        error: null,
+        metadata: r.metadata,
+        fens: r.fens,
+        sanMoves: r.sanMoves,
+        moves: r.moves,
+        analyzedCount: r.moves.length,
+        totalMoves: r.sanMoves.length,
+        summary: r.summary,
+        currentIndex: 0,
+        gameId: r.gameId,
+      };
+    }
+
     case 'RESET':
       return {
         ...initialState,
@@ -154,6 +174,7 @@ interface AnalysisContextValue {
   setWorkerCount: (n: number) => void;
   setHashMb: (mb: number) => void;
   saveCurrentAnalysis: () => BenchmarkRun | null;
+  restoreAnalysis: (record: AnalysisRecord) => void;
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null);
@@ -324,7 +345,24 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
 
     if (abortRef.current) return;
 
-    dispatch({ type: 'ANALYSIS_DONE', summary: buildSummary(analyzedMoves) });
+    const summary = buildSummary(analyzedMoves);
+    dispatch({ type: 'ANALYSIS_DONE', summary });
+
+    const s = stateRef.current;
+    if (s.metadata) {
+      saveAnalysisRecord({
+        gameId: computeGameId(rawInputRef.current),
+        pgn: rawInputRef.current,
+        analyzedAt: Date.now(),
+        depth,
+        engineId,
+        moves: analyzedMoves,
+        summary,
+        fens,
+        sanMoves,
+        metadata: s.metadata,
+      });
+    }
   }, []);
 
   const navigate  = useCallback((index: number) => dispatch({ type: 'NAVIGATE', index }), []);
@@ -338,6 +376,14 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     activeWorkersRef.current.forEach((w) => w.terminate());
     activeWorkersRef.current = [];
     dispatch({ type: 'RESET' });
+  }, []);
+
+  const restoreAnalysis = useCallback((record: AnalysisRecord) => {
+    abortRef.current = true;
+    activeWorkersRef.current.forEach((w) => w.terminate());
+    activeWorkersRef.current = [];
+    rawInputRef.current = record.pgn;
+    dispatch({ type: 'RESTORE_ANALYSIS', record });
   }, []);
 
   const saveCurrentAnalysis = useCallback((): BenchmarkRun | null => {
@@ -359,7 +405,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   return (
     <AnalysisContext.Provider value={{
       state, loadGame, startAnalysis, navigate, reset,
-      setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis,
+      setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis,
     }}>
       {children}
     </AnalysisContext.Provider>

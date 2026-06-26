@@ -7,9 +7,16 @@ import {
   type Platform,
   type GameSummary,
 } from '../lib/accounts';
+import {
+  hasAnalysisRecord,
+  loadAnalysisRecord,
+  computeGameId,
+  type AnalysisRecord,
+} from '../lib/analysisHistory';
 
 interface Props {
   onGameLoad: (pgn: string) => void;
+  onRestoreAnalysis: (record: AnalysisRecord) => void;
 }
 
 function ResultBadge({ result }: { result: string }) {
@@ -24,7 +31,7 @@ function ResultBadge({ result }: { result: string }) {
   );
 }
 
-function GameRow({ game, onLoad }: { game: GameSummary; onLoad: () => void }) {
+function GameRow({ game, onLoad, analyzed }: { game: GameSummary; onLoad: () => void; analyzed: boolean }) {
   return (
     <button
       onClick={onLoad}
@@ -42,6 +49,9 @@ function GameRow({ game, onLoad }: { game: GameSummary; onLoad: () => void }) {
         <div className="text-[10px] text-faint mt-0.5 flex gap-2">
           <span>{game.date}</span>
           {game.timeControl && <span>· {game.timeControl}</span>}
+          {analyzed && (
+            <span className="font-semibold" style={{ color: 'var(--success, #4caf50)' }}>✓ Analiz edildi</span>
+          )}
         </div>
       </div>
       <span className="text-faint text-[10px] shrink-0">›</span>
@@ -49,7 +59,7 @@ function GameRow({ game, onLoad }: { game: GameSummary; onLoad: () => void }) {
   );
 }
 
-export function AccountPanel({ onGameLoad }: Props) {
+export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
   const saved = loadSavedUsernames();
   const [platform, setPlatform] = useState<Platform>('lichess');
   const [username, setUsername] = useState(saved[platform] ?? '');
@@ -161,13 +171,24 @@ export function AccountPanel({ onGameLoad }: Props) {
             <p className="text-[10px] text-faint mb-2">
               {games.length} maç bulundu — analiz için tıklayın
             </p>
-            {games.map((game) => (
-              <GameRow
-                key={game.id}
-                game={game}
-                onLoad={() => onGameLoad(game.pgn)}
-              />
-            ))}
+            {games.map((game) => {
+              const gameId = computeGameId(game.pgn.trim());
+              const analyzed = hasAnalysisRecord(gameId);
+              return (
+                <GameRow
+                  key={game.id}
+                  game={game}
+                  analyzed={analyzed}
+                  onLoad={() => {
+                    if (analyzed) {
+                      const record = loadAnalysisRecord(gameId);
+                      if (record) { onRestoreAnalysis(record); return; }
+                    }
+                    onGameLoad(game.pgn);
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </div>

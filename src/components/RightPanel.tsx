@@ -27,7 +27,7 @@ const EXAMPLE_PGN = `[Event "F/S Return Match"]
 type Tab = 'giris' | 'hesap' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 
 export function RightPanel() {
-  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis } = useAnalysis();
+  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
   const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
   const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId } = state;
 
@@ -156,6 +156,10 @@ export function RightPanel() {
           <AccountPanel
             onGameLoad={(pgn) => {
               loadGame(pgn);
+              setTab('hamleler');
+            }}
+            onRestoreAnalysis={(record) => {
+              restoreAnalysis(record);
               setTab('hamleler');
             }}
           />
