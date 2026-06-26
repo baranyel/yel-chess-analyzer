@@ -95,30 +95,27 @@ export async function fetchLichessGames(username: string, max = 15): Promise<Gam
   if (!res.ok) throw new Error(`Lichess hatası: ${res.status}`);
 
   const text = await res.text();
-  const games: GameSummary[] = text
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        const g = JSON.parse(line);
-        const date = g.createdAt
-          ? new Date(g.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
-          : '?';
-        return {
-          id: g.id ?? '',
-          platform: 'lichess' as const,
-          white:    g.players?.white?.user?.name ?? 'Beyaz',
-          black:    g.players?.black?.user?.name ?? 'Siyah',
-          whiteElo: g.players?.white?.rating,
-          blackElo: g.players?.black?.rating,
-          result:   g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½',
-          date,
-          timeControl: lichessTimeLabel(g.clock),
-          pgn: g.pgn ?? '',
-        } satisfies GameSummary;
-      } catch { return null; }
-    })
-    .filter((g): g is GameSummary => g !== null && g.pgn.length > 0);
+  const games = text.split('\n').filter(Boolean).flatMap((line): GameSummary[] => {
+    try {
+      const g = JSON.parse(line);
+      if (!g.pgn) return [];
+      const date = g.createdAt
+        ? new Date(g.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
+        : '?';
+      return [{
+        id:          g.id ?? '',
+        platform:    'lichess',
+        white:       g.players?.white?.user?.name ?? 'Beyaz',
+        black:       g.players?.black?.user?.name ?? 'Siyah',
+        whiteElo:    g.players?.white?.rating,
+        blackElo:    g.players?.black?.rating,
+        result:      g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½',
+        date,
+        timeControl: lichessTimeLabel(g.clock),
+        pgn:         g.pgn,
+      }];
+    } catch { return []; }
+  });
 
   writeCache('lichess', username, games);
   return games;
@@ -159,26 +156,26 @@ export async function fetchChessComGames(username: string, count = 15): Promise<
       }>;
     };
 
-    const mapped = [...(monthGames ?? [])].reverse().map((g) => {
+    const mapped: GameSummary[] = [...(monthGames ?? [])].reverse().flatMap((g): GameSummary[] => {
+      if (!g.pgn) return [];
       const whiteWon = g.white.result === 'win';
       const blackWon = g.black.result === 'win';
-      const result = whiteWon ? '1-0' : blackWon ? '0-1' : '½-½';
       const date = g.end_time
         ? new Date(g.end_time * 1000).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
         : '?';
-      return {
-        id: g.uuid ?? g.url ?? '',
-        platform: 'chesscom' as const,
-        white:    g.white.username,
-        black:    g.black.username,
-        whiteElo: g.white.rating,
-        blackElo: g.black.rating,
-        result,
+      return [{
+        id:          g.uuid ?? g.url ?? '',
+        platform:    'chesscom',
+        white:       g.white.username,
+        black:       g.black.username,
+        whiteElo:    g.white.rating,
+        blackElo:    g.black.rating,
+        result:      whiteWon ? '1-0' : blackWon ? '0-1' : '½-½',
         date,
         timeControl: chesscomTimeLabel(g.time_control),
-        pgn: g.pgn ?? '',
-      } satisfies GameSummary;
-    }).filter((g) => g.pgn.length > 0);
+        pgn:         g.pgn,
+      }];
+    });
 
     games.push(...mapped);
   }
