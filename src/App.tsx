@@ -85,7 +85,7 @@ export default function App() {
       </header>
 
       {/* ── Main layout ────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col xl:flex-row xl:justify-center overflow-hidden">
         {/* Board column — scrolls vertically if board is tall */}
         <div className="flex flex-col items-center gap-2 p-3 xl:p-4 xl:shrink-0 overflow-y-auto overflow-x-hidden">
           <div className="flex gap-2 items-stretch" style={{ height: boardSize }}>
