@@ -21,6 +21,7 @@ export interface ConsistencyReport {
   classificationAgreementPct: number;
   acplStdDev: { white: number; black: number };
   accuracyStdDev: { white: number; black: number };
+  eloStdDev: { white: number; black: number };
   consistencyScore: number;
 }
 
@@ -110,6 +111,10 @@ export function computeConsistency(runs: BenchmarkRun[]): ConsistencyReport | nu
     accuracyStdDev: {
       white: +stdDev(runs.map((r) => r.summary.white.accuracy)).toFixed(1),
       black: +stdDev(runs.map((r) => r.summary.black.accuracy)).toFixed(1),
+    },
+    eloStdDev: {
+      white: Math.round(stdDev(runs.map((r) => r.summary.white.estimatedElo))),
+      black: Math.round(stdDev(runs.map((r) => r.summary.black.estimatedElo))),
     },
     consistencyScore,
   };

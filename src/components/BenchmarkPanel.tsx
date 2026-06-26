@@ -119,6 +119,14 @@ function ConfigGroup({
                   İsabet sapması (S)
                   <span className="text-base font-semibold ml-1">±{report.accuracyStdDev.black}%</span>
                 </div>
+                <div>
+                  Rating sapması (B)
+                  <span className="text-base font-semibold ml-1">±{report.eloStdDev.white}</span>
+                </div>
+                <div>
+                  Rating sapması (S)
+                  <span className="text-base font-semibold ml-1">±{report.eloStdDev.black}</span>
+                </div>
               </div>
             </div>
           ) : (
