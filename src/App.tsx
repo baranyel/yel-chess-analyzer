@@ -132,7 +132,7 @@ export default function App() {
         </div>
 
         {/* Right panel — flex child stretches to full height in xl:flex-row */}
-        <div className="flex flex-col border-t border-base xl:border-t-0 xl:border-l xl:shrink-0 xl:w-80 min-h-0 overflow-hidden">
+        <div className="flex flex-col border-t border-base xl:border-t-0 xl:border-l xl:shrink-0 xl:w-96 min-h-0 overflow-hidden">
           <RightPanel />
         </div>
       </div>
