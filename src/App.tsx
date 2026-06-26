@@ -21,7 +21,7 @@ function buildPieceImages(path: string | null) {
       p,
       ({ squareWidth }: { squareWidth: number }) => (
         <img
-          src={`${path}/${p}.svg`}
+          src={`${import.meta.env.BASE_URL}${path}/${p}.svg`}
           style={{ width: squareWidth, height: squareWidth }}
           alt={p}
           draggable={false}

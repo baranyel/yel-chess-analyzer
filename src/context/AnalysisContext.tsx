@@ -144,7 +144,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     engineRef.current?.terminate();
     const cfg = AVAILABLE_ENGINES.find((e) => e.id === state.engineId) ?? AVAILABLE_ENGINES[0];
-    engineRef.current = new StockfishService(cfg.workerPath);
+    engineRef.current = new StockfishService(import.meta.env.BASE_URL + cfg.workerPath);
     return () => {
       engineRef.current?.terminate();
       engineRef.current = null;

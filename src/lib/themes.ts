@@ -46,10 +46,10 @@ export interface PieceSet {
 
 export const PIECE_SETS: PieceSet[] = [
   { id: 'default',    name: 'Standart',   description: 'Varsayılan modern set',       path: null },
-  { id: 'cburnett',   name: 'CBurnett',   description: 'Lichess klasik seti',         path: '/pieces/cburnett' },
-  { id: 'merida',     name: 'Merida',     description: 'Turnuva standart seti',       path: '/pieces/merida' },
-  { id: 'alpha',      name: 'Alpha',      description: 'Sade, temiz tasarım',         path: '/pieces/alpha' },
-  { id: 'california', name: 'California', description: 'Modern zarif seti',           path: '/pieces/california' },
+  { id: 'cburnett',   name: 'CBurnett',   description: 'Lichess klasik seti',         path: 'pieces/cburnett' },
+  { id: 'merida',     name: 'Merida',     description: 'Turnuva standart seti',       path: 'pieces/merida' },
+  { id: 'alpha',      name: 'Alpha',      description: 'Sade, temiz tasarım',         path: 'pieces/alpha' },
+  { id: 'california', name: 'California', description: 'Modern zarif seti',           path: 'pieces/california' },
 ];
 
 // ── Font Options ──────────────────────────────────────────────────────────

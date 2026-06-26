@@ -238,7 +238,7 @@ export function RightPanel() {
                   >
                     {ps.path ? (
                       <img
-                        src={`${ps.path}/wK.svg`}
+                        src={`${import.meta.env.BASE_URL}${ps.path}/wK.svg`}
                         className="w-7 h-7 shrink-0 object-contain"
                         alt={ps.name}
                         draggable={false}
