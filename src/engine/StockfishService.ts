@@ -53,7 +53,19 @@ export class StockfishService {
       const line: string = typeof e.data === 'string' ? e.data : String(e.data ?? '');
       this.handleLine(line);
     };
-    this.worker.onerror = (e) => console.error('[StockfishService] worker error', e);
+    this.worker.onerror = (e) => {
+      console.error('[StockfishService] worker error', e);
+      // Unblock any waiting ready callbacks so queued analyses don't hang
+      this.ready = true;
+      this.readyCallbacks.forEach((cb) => cb());
+      this.readyCallbacks = [];
+      // Unblock any in-flight analysis promise with a neutral fallback result
+      if (this.analysisCallback) {
+        const cb = this.analysisCallback;
+        this.analysisCallback = null;
+        cb({ fen: this.currentFen, eval: { type: 'cp', value: 0 }, bestMove: '', alternatives: [], alternativeEvals: [], depth: 0 });
+      }
+    };
 
     // UCI initialisation sequence
     this.send('uci');

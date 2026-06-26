@@ -432,6 +432,17 @@ export function RightPanel() {
                   </div>
                 </div>
 
+                {/* Efektif hash bilgisi */}
+                {workerCount > 1 && (() => {
+                  const effective = Math.max(16, Math.min(hashMb, Math.floor(512 / workerCount)));
+                  return effective < hashMb ? (
+                    <p className="text-[10px] text-faint">
+                      Toplam hash bütçesi nedeniyle işçi başına etkin hash:{' '}
+                      <span className="text-muted font-semibold">{effective}MB</span>
+                    </p>
+                  ) : null;
+                })()}
+
                 {/* Uyarı */}
                 {(workerCount >= 8 || hashMb >= 512) && (
                   <div className="flex items-start gap-2 px-2.5 py-2 rounded border text-[10px]"

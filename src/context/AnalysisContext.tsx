@@ -202,8 +202,13 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0];
     const workerPath = import.meta.env.BASE_URL + cfg.workerPath;
 
+    // Each Stockfish WASM instance uses ~80MB base (NNUE weights) + hashMb.
+    // Cap total hash so (base + hash) × workers stays within ~1.5GB.
+    const TOTAL_HASH_BUDGET_MB = 512;
+    const effectiveHashMb = Math.max(16, Math.min(hashMb, Math.floor(TOTAL_HASH_BUDGET_MB / workerCount)));
+
     // Create N workers
-    const workers = Array.from({ length: workerCount }, () => new StockfishService(workerPath, hashMb));
+    const workers = Array.from({ length: workerCount }, () => new StockfishService(workerPath, effectiveHashMb));
     activeWorkersRef.current = workers;
 
     const evalCache: (EvalResult | null)[] = new Array(fens.length).fill(null);
