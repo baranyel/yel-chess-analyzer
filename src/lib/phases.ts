@@ -52,6 +52,24 @@ function playerStats(moves: AnalyzedMove[]): PhasePlayerStats {
   };
 }
 
+export interface PlayerPhaseBreakdown {
+  opening: PhasePlayerStats;
+  middlegame: PhasePlayerStats;
+  endgame: PhasePlayerStats;
+}
+
+// For account analysis: all moves belong to one player across many games.
+// Phase is still computed per-move (moveNumber resets per game, which is correct).
+export function computePlayerPhaseBreakdown(moves: AnalyzedMove[]): PlayerPhaseBreakdown {
+  const buckets: Record<GamePhase, AnalyzedMove[]> = { opening: [], middlegame: [], endgame: [] };
+  for (const move of moves) buckets[detectPhase(move)].push(move);
+  return {
+    opening:    playerStats(buckets.opening),
+    middlegame: playerStats(buckets.middlegame),
+    endgame:    playerStats(buckets.endgame),
+  };
+}
+
 export function computePhaseBreakdown(moves: AnalyzedMove[]): PhaseBreakdown {
   const buckets: Record<GamePhase, { w: AnalyzedMove[]; b: AnalyzedMove[] }> = {
     opening:    { w: [], b: [] },

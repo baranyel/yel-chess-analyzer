@@ -13,11 +13,17 @@ import {
   computeGameId,
   type AnalysisRecord,
 } from '../lib/analysisHistory';
+import { runAccountAnalysis, type AccountAnalysisResult } from '../lib/accountAnalysis';
+import { AVAILABLE_ENGINES } from '../lib/engines';
+import { useAnalysis } from '../context/AnalysisContext';
+import { AccountAnalysisResultCard } from './AccountAnalysisResultCard';
 
 interface Props {
   onGameLoad: (pgn: string) => void;
   onRestoreAnalysis: (record: AnalysisRecord) => void;
 }
+
+type View = 'list' | 'analyzing' | 'result';
 
 function ResultBadge({ result }: { result: string }) {
   const color =
@@ -68,12 +74,21 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Account analysis state
+  const [view, setView] = useState<View>('list');
+  const [progress, setProgress] = useState({ done: 0, total: 0, currentGame: '' });
+  const [analysisResult, setAnalysisResult] = useState<AccountAnalysisResult | null>(null);
+  const abortRef = useRef<{ aborted: boolean }>({ aborted: false });
+
+  const { state: { engineId, depth, workerCount, hashMb } } = useAnalysis();
+
   // Restore saved username when platform changes
   useEffect(() => {
     const names = loadSavedUsernames();
     setUsername(names[platform] ?? '');
     setGames([]);
     setError(null);
+    setView('list');
   }, [platform]);
 
   const handleFetch = async () => {
@@ -83,6 +98,7 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
     setLoading(true);
     setError(null);
     setGames([]);
+    setView('list');
     try {
       const result = platform === 'lichess'
         ? await fetchLichessGames(trimmed)
@@ -101,6 +117,46 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleFetch();
+  };
+
+  const handleStartAccountAnalysis = async () => {
+    const trimmed = username.trim();
+    if (!trimmed || games.length === 0) return;
+
+    abortRef.current = { aborted: false };
+    setView('analyzing');
+    setProgress({ done: 0, total: games.length, currentGame: '' });
+
+    const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0]!;
+    const enginePath = import.meta.env.BASE_URL + cfg.workerPath;
+
+    try {
+      const result = await runAccountAnalysis(
+        games,
+        trimmed,
+        enginePath,
+        engineId,
+        depth,
+        workerCount,
+        hashMb,
+        (done, total, currentGame) => setProgress({ done, total, currentGame }),
+        abortRef.current,
+      );
+
+      if (!abortRef.current.aborted) {
+        setAnalysisResult(result);
+        setView('result');
+      } else {
+        setView('list');
+      }
+    } catch {
+      setView('list');
+    }
+  };
+
+  const handleAbort = () => {
+    abortRef.current.aborted = true;
+    setView('list');
   };
 
   return (
@@ -135,11 +191,11 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
           placeholder="Kullanıcı adı"
           className="flex-1 bg-surface-2 border border-base rounded px-2.5 py-1.5 text-xs text-base focus:outline-none focus:border-accent transition-colors"
           style={{ '--tw-ring-color': 'var(--accent)' } as React.CSSProperties}
-          disabled={loading}
+          disabled={loading || view === 'analyzing'}
         />
         <button
           onClick={handleFetch}
-          disabled={loading || !username.trim()}
+          disabled={loading || !username.trim() || view === 'analyzing'}
           className="px-3 py-1.5 rounded text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
         >
@@ -147,51 +203,115 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
         </button>
       </div>
 
-      {/* İçerik */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3">
-        {loading && (
-          <div className="flex items-center justify-center py-10 text-xs text-muted animate-pulse">
-            Maçlar yükleniyor…
-          </div>
-        )}
+      {/* İçerik — view bazlı */}
 
-        {error && !loading && (
-          <p className="text-xs text-danger text-center py-6">{error}</p>
-        )}
-
-        {!loading && !error && games.length === 0 && (
-          <div className="text-center py-10 text-faint text-xs space-y-1">
-            <p>Kullanıcı adını girin ve</p>
-            <p><span className="text-muted font-semibold">Getir</span> butonuna basın.</p>
+      {/* ── Analiz Ediliyor ─────────────────────────────────────────── */}
+      {view === 'analyzing' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
+          <div className="text-xs text-muted text-center animate-pulse">
+            Hesap Analizi Yapılıyor…
           </div>
-        )}
-
-        {!loading && games.length > 0 && (
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-faint mb-2">
-              {games.length} maç bulundu — analiz için tıklayın
-            </p>
-            {games.map((game) => {
-              const gameId = computeGameId(game.pgn.trim());
-              const analyzed = hasAnalysisRecord(gameId);
-              return (
-                <GameRow
-                  key={game.id}
-                  game={game}
-                  analyzed={analyzed}
-                  onLoad={() => {
-                    if (analyzed) {
-                      const record = loadAnalysisRecord(gameId);
-                      if (record) { onRestoreAnalysis(record); return; }
-                    }
-                    onGameLoad(game.pgn);
-                  }}
-                />
-              );
-            })}
+          <div className="w-full space-y-1.5">
+            <div className="h-1.5 bg-surface-2 rounded overflow-hidden">
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
+                  backgroundColor: 'var(--accent)',
+                }}
+              />
+            </div>
+            <div className="text-[10px] text-faint text-center">
+              {progress.done}/{progress.total} maç
+            </div>
+            {progress.currentGame && (
+              <div className="text-[10px] text-muted text-center truncate">
+                {progress.currentGame}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+          <div className="text-[10px] text-faint text-center leading-relaxed">
+            Derinlik {depth} · {workerCount} işçi<br />
+            Bu işlem birkaç dakika sürebilir.
+          </div>
+          <button
+            onClick={handleAbort}
+            className="px-4 py-1.5 rounded border border-base text-xs text-muted hover-surface transition-colors"
+          >
+            İptal
+          </button>
+        </div>
+      )}
+
+      {/* ── Sonuç ───────────────────────────────────────────────────── */}
+      {view === 'result' && analysisResult && (
+        <div className="flex-1 overflow-y-auto">
+          <AccountAnalysisResultCard
+            result={analysisResult}
+            onClose={() => setView('list')}
+          />
+        </div>
+      )}
+
+      {/* ── Oyun Listesi ─────────────────────────────────────────────  */}
+      {view === 'list' && (
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
+          {loading && (
+            <div className="flex items-center justify-center py-10 text-xs text-muted animate-pulse">
+              Maçlar yükleniyor…
+            </div>
+          )}
+
+          {error && !loading && (
+            <p className="text-xs text-danger text-center py-6">{error}</p>
+          )}
+
+          {!loading && !error && games.length === 0 && (
+            <div className="text-center py-10 text-faint text-xs space-y-1">
+              <p>Kullanıcı adını girin ve</p>
+              <p><span className="text-muted font-semibold">Getir</span> butonuna basın.</p>
+            </div>
+          )}
+
+          {!loading && games.length > 0 && (
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] text-faint">
+                  {games.length} maç — analiz için tıklayın
+                </p>
+              </div>
+
+              {/* Hesap analizi butonu */}
+              <button
+                onClick={handleStartAccountAnalysis}
+                className="w-full mb-2 py-2 rounded border text-xs font-semibold transition-colors"
+                style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}
+              >
+                Tüm Maçları Analiz Et — Tahmini Rating Çıkar
+              </button>
+
+              {games.map((game) => {
+                const gameId = computeGameId(game.pgn.trim());
+                const analyzed = hasAnalysisRecord(gameId);
+                return (
+                  <GameRow
+                    key={game.id}
+                    game={game}
+                    analyzed={analyzed}
+                    onLoad={() => {
+                      if (analyzed) {
+                        const record = loadAnalysisRecord(gameId);
+                        if (record) { onRestoreAnalysis(record); return; }
+                      }
+                      onGameLoad(game.pgn);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
