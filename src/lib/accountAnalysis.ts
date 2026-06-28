@@ -5,7 +5,7 @@ import { hasAnalysisRecord, loadAnalysisRecord, saveAnalysisRecord, computeGameI
 import {
   classifyMove,
   computeCpLoss,
-  computeSecondBestCpLoss,
+  computeWinPctLoss,
   computeAccuracy,
   computeAcpl,
   estimateElo,
@@ -94,8 +94,10 @@ async function analyzeGameMoves(
     const evalBefore = evalCache[i]!;
     const evalAfter  = evalCache[i + 1]!;
     const cpLoss = computeCpLoss(evalBefore, evalAfter, color);
+    const winPctLoss = computeWinPctLoss(evalBefore, evalAfter, color);
     const alt2   = altEvals[i]?.[0] ?? null;
-    const secondBestCpLoss = alt2 ? computeSecondBestCpLoss(evalBefore, alt2, color) : 9999;
+    const secondBestCpLoss    = alt2 ? computeCpLoss(evalBefore, alt2, color)     : 9999;
+    const secondBestWinPctLoss = alt2 ? computeWinPctLoss(evalBefore, alt2, color) : 9999;
     analyzedMoves.push({
       moveNumber: Math.floor(i / 2) + 1,
       color,
@@ -109,7 +111,7 @@ async function analyzeGameMoves(
       bestEval:      evalBefore,
       alternatives:  altMoves[i] ?? [],
       alternativeEvals: altEvals[i] ?? [],
-      classification: classifyMove(cpLoss, secondBestCpLoss, uci, bestMoves[i]),
+      classification: classifyMove(winPctLoss, secondBestWinPctLoss, uci, bestMoves[i]),
       cpLoss,
       secondBestCpLoss,
     });

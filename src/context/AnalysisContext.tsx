@@ -11,7 +11,7 @@ import { parsePgn, parseFen } from '../lib/pgn';
 import {
   classifyMove,
   computeCpLoss,
-  computeSecondBestCpLoss,
+  computeWinPctLoss,
   computeAccuracy,
   computeAcpl,
   estimateElo,
@@ -268,16 +268,14 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
         const evalBefore = evalCache[i];
         const evalAfter  = evalCache[i + 1];
 
-        let cpLoss = 0;
-        if (evalBefore && evalAfter) cpLoss = computeCpLoss(evalBefore, evalAfter, color);
+        const cpLoss = (evalBefore && evalAfter) ? computeCpLoss(evalBefore, evalAfter, color) : 0;
+        const winPctLoss = (evalBefore && evalAfter) ? computeWinPctLoss(evalBefore, evalAfter, color) : 0;
 
-        let secondBestCpLoss = 9999;
         const alt2Eval = altEvals[i]?.[0] ?? null;
-        if (evalBefore && alt2Eval) {
-          secondBestCpLoss = computeSecondBestCpLoss(evalBefore, alt2Eval, color);
-        }
+        const secondBestCpLoss = (evalBefore && alt2Eval) ? computeCpLoss(evalBefore, alt2Eval, color) : 9999;
+        const secondBestWinPctLoss = (evalBefore && alt2Eval) ? computeWinPctLoss(evalBefore, alt2Eval, color) : 9999;
 
-        const classification = classifyMove(cpLoss, secondBestCpLoss, uci, bestMoves[i]);
+        const classification = classifyMove(winPctLoss, secondBestWinPctLoss, uci, bestMoves[i]);
 
         const analyzedMove: AnalyzedMove = {
           moveNumber: Math.floor(i / 2) + 1,

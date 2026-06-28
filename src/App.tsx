@@ -7,6 +7,8 @@ import { MoveDetail } from './components/MoveDetail';
 import { NavigationControls } from './components/NavigationControls';
 import { RightPanel } from './components/RightPanel';
 import { BOARD_COLORS, PIECE_SETS } from './lib/themes';
+import { CLASSIFICATION_STYLES, type ClassificationStyle } from './lib/classification';
+import type { MoveClassification } from './lib/types';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const BASE_BOARD_SIZE = 520;
@@ -28,6 +30,62 @@ function buildPieceImages(path: string | null) {
         />
       ),
     ]),
+  );
+}
+
+// Converts a square name ("e4") to pixel offsets from the board's top-left corner.
+// Assumes white is at the bottom (standard orientation).
+function squareToOffset(square: string, boardSize: number) {
+  const col  = square.charCodeAt(0) - 97;          // 'a'=0 … 'h'=7
+  const rank = parseInt(square[1]!, 10);            // '1'=1 … '8'=8
+  const sz   = boardSize / 8;
+  return { x: col * sz, y: (8 - rank) * sz };
+}
+
+const HIDDEN: MoveClassification[] = ['unknown'];
+
+function ClassificationBadge({
+  uci,
+  classification,
+  boardSize,
+}: {
+  uci: string;
+  classification: MoveClassification;
+  boardSize: number;
+}) {
+  if (HIDDEN.includes(classification)) return null;
+  const dest  = uci.slice(2, 4);
+  const style: ClassificationStyle = CLASSIFICATION_STYLES[classification];
+  const sz    = boardSize / 8;
+  const badge = Math.round(sz * 0.38);
+  const { x, y } = squareToOffset(dest, boardSize);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left:  x + sz - badge * 0.6,
+        top:   y + sz - badge * 0.6,
+        width:  badge,
+        height: badge,
+        borderRadius: '50%',
+        backgroundColor: style.color,
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: Math.round(badge * 0.42),
+        fontWeight: 900,
+        lineHeight: 1,
+        border: '2px solid rgba(255,255,255,0.75)',
+        pointerEvents: 'none',
+        zIndex: 20,
+        letterSpacing: '-0.5px',
+        userSelect: 'none',
+      }}
+    >
+      {style.icon}
+    </div>
   );
 }
 
@@ -99,7 +157,7 @@ export default function App() {
         <div className="flex flex-col items-center gap-2 p-3 xl:p-4 xl:shrink-0 overflow-y-auto overflow-x-hidden">
           <div className="flex gap-2 items-stretch" style={{ height: boardSize }}>
             <EvalBar eval_={currentEval} height={boardSize} />
-            <div style={{ width: boardSize, height: boardSize }}>
+            <div style={{ width: boardSize, height: boardSize, position: 'relative' }}>
               <Chessboard
                 options={{
                   position: currentFen,
@@ -115,6 +173,13 @@ export default function App() {
                   pieces: customPieces as never,
                 }}
               />
+              {currentMove && (
+                <ClassificationBadge
+                  uci={currentMove.uci}
+                  classification={currentMove.classification}
+                  boardSize={boardSize}
+                />
+              )}
             </div>
           </div>
 
