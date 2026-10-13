@@ -2,6 +2,7 @@
   "name": "freechess",
   "private": true,
   "version": "1.2.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +14,9 @@
     "postinstall": "node scripts/copy-stockfish.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/fira-code": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/nunito": "^5.3.0",
     "chess.js": "^1.4.0",
     "react": "^19.2.7",
     "react-chessboard": "^5.10.0",

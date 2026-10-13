@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import type { AnalyzedMove } from '../lib/types';
 import { CLASSIFICATION_STYLES } from '../lib/classification';
+import { formatEval } from '../lib/format';
 
 interface Props {
   moves: AnalyzedMove[];
@@ -12,11 +13,7 @@ interface Props {
 }
 
 function fmtEval(move: AnalyzedMove): string {
-  const e = move.evalAfter;
-  if (!e) return '';
-  if (e.type === 'mate') return `M${e.value}`;
-  const p = e.value / 100;
-  return (p >= 0 ? '+' : '') + p.toFixed(1);
+  return move.evalAfter ? formatEval(move.evalAfter, 1) : '';
 }
 
 export function MoveList({ moves, sanMoves, currentIndex, totalMoves, onSelect }: Props) {

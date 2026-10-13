@@ -28,4 +28,13 @@ for (const f of files) {
   copyFileSync(from, to);
   console.log(`✓  ${f}`);
 }
+
+// The engine is GPL-3.0: ship the license text next to the binaries we distribute.
+const license = resolve(root, 'node_modules', 'stockfish', 'Copying.txt');
+if (existsSync(license)) {
+  copyFileSync(license, resolve(dest, 'COPYING.txt'));
+  console.log('✓  COPYING.txt (GPL-3.0)');
+} else {
+  console.warn('⚠  Copying.txt not found in stockfish npm package — GPL text will be missing from the build');
+}
 console.log('Stockfish files ready in public/stockfish/');

@@ -22,17 +22,8 @@ const PrefsContext = createContext<PrefsContextValue | null>(null);
 function applyFont(fontId: string) {
   const font = FONT_OPTIONS.find((f) => f.id === fontId) ?? FONT_OPTIONS[0];
   document.documentElement.style.setProperty('--font-family', font.stack);
-
-  if (font.googleFont) {
-    const linkId = `gfont-${font.id}`;
-    if (!document.getElementById(linkId)) {
-      const link = document.createElement('link');
-      link.id = linkId;
-      link.rel = 'stylesheet';
-      link.href = `https://fonts.googleapis.com/css2?family=${font.googleFont}&display=swap`;
-      document.head.appendChild(link);
-    }
-  }
+  // Bundled locally; if the chunk fails to load the stack falls back to system fonts.
+  font.load?.().catch(() => {});
 }
 
 export function PrefsProvider({ children }: { children: React.ReactNode }) {

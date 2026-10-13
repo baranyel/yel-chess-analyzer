@@ -1,0 +1,69 @@
+THIRD-PARTY NOTICES — Yel Satranç Analiz
+==========================================
+
+This project's own source code is MIT-licensed (see LICENSE). It ships with, and
+depends on, the third-party works below, each under its own license. This file is
+served with the site (…/THIRD_PARTY_NOTICES.txt) and lives in the repository under
+public/.
+
+
+1. CHESS ENGINE — Stockfish.js (GPL-3.0)
+----------------------------------------
+The in-browser engine files (stockfish-18-single.js/.wasm and
+stockfish-18-lite-single.js/.wasm) come unmodified from the npm package
+"stockfish" (Stockfish.js by Nathan Rugg), a WebAssembly build of the Stockfish
+chess engine (The Stockfish developers).
+
+  License:        GNU General Public License v3.0
+  Full text:      served next to the engine files at …/stockfish/COPYING.txt
+                  (copied from the npm package's Copying.txt at install time)
+  Source code:    https://github.com/nmrugg/stockfish.js
+                  https://github.com/official-stockfish/Stockfish
+  npm package:    https://www.npmjs.com/package/stockfish
+
+The engine runs as a separate Web Worker and talks to this application only
+through UCI text messages. The engine files are not modified by this project.
+
+
+2. PIECE SETS (public/pieces/)
+------------------------------
+As listed in the Lichess project's COPYING.md
+(https://github.com/lichess-org/lila/blob/master/COPYING.md):
+
+  cburnett    Colin M.L. Burnett    GPLv2+
+              https://en.wikipedia.org/wiki/User:Cburnett
+  merida      Armando Hernandez Marroquin    GPLv2+
+  alpha       Eric Bentzen    "free for personal non commercial use"
+              http://www.enpassant.dk/chess/downl/alpha.zip
+  california  Jerry S.    CC BY-NC-SA 4.0
+              https://sites.google.com/view/jerrychess/home
+              https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+NOTE: "alpha" and "california" are restricted to NON-COMMERCIAL use. This project
+is a free, non-commercial tool. If you reuse it commercially, remove those two
+sets (public/pieces/alpha, public/pieces/california and their entries in
+src/lib/themes.ts).
+
+
+3. FONTS (bundled via @fontsource-variable, SIL Open Font License 1.1)
+----------------------------------------------------------------------
+  Inter       © The Inter Project Authors          https://github.com/rsms/inter
+  Nunito      © The Nunito Project Authors         https://github.com/googlefonts/nunito
+  Fira Code   © The Fira Code Project Authors      https://github.com/tonsky/FiraCode
+
+The fonts are served from this site; nothing is requested from Google Fonts.
+
+
+4. LIBRARIES (see package.json; licenses as of the versions installed)
+----------------------------------------------------------------------
+  chess.js           BSD-2-Clause   https://github.com/jhlywa/chess.js
+  react, react-dom   MIT            https://github.com/facebook/react
+  react-chessboard   MIT            https://github.com/Clariity/react-chessboard
+  Tailwind CSS       MIT            https://github.com/tailwindlabs/tailwindcss
+
+
+5. DATA SOURCES
+---------------
+Game lists for the "Hesap" tab are requested directly from the public APIs of
+Lichess (https://lichess.org/api) and Chess.com (https://www.chess.com/news/view/published-data-api)
+by the user's browser, only when the user asks for them.

@@ -1,27 +1,10 @@
 import type { AccountAnalysisResult } from '../lib/accountAnalysis';
 import type { PlayerPhaseBreakdown, PhasePlayerStats } from '../lib/phases';
+import { accuracyBg, eloColor } from '../lib/ui';
 
 interface Props {
   result: AccountAnalysisResult;
   onClose: () => void;
-}
-
-const ACC_COLORS = [
-  { min: 90, bg: '#15803d' },
-  { min: 75, bg: '#3f6212' },
-  { min: 60, bg: '#a16207' },
-  { min: 45, bg: '#c2410c' },
-  { min: 0,  bg: '#b91c1c' },
-] as const;
-
-function accBg(v: number) { return ACC_COLORS.find((c) => v >= c.min)!.bg; }
-
-function eloColor(elo: number) {
-  if (elo >= 2400) return 'var(--clr-elo-5)';
-  if (elo >= 2000) return 'var(--clr-elo-4)';
-  if (elo >= 1700) return 'var(--clr-elo-3)';
-  if (elo >= 1400) return 'var(--clr-elo-2)';
-  return 'var(--clr-elo-1)';
 }
 
 function PhaseRow({ label, stats }: { label: string; stats: PhasePlayerStats }) {
@@ -35,7 +18,7 @@ function PhaseRow({ label, stats }: { label: string; stats: PhasePlayerStats }) 
         <>
           <span
             className="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0"
-            style={{ backgroundColor: accBg(stats.accuracy), color: '#fff' }}
+            style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
           >
             {stats.accuracy}%
           </span>
@@ -92,7 +75,7 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
             <span className="text-muted">Doğruluk</span>
             <span
               className="font-bold px-2 py-0.5 rounded"
-              style={{ backgroundColor: accBg(stats.accuracy), color: '#fff' }}
+              style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
             >
               {stats.accuracy}%
             </span>

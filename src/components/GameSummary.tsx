@@ -1,29 +1,17 @@
 import type { GameSummaryStats, PgnMetadata } from '../lib/types';
 import { CLASSIFICATION_STYLES } from '../lib/classification';
+import { accuracyBg, eloColor } from '../lib/ui';
 
 interface Props {
   summary: GameSummaryStats;
   metadata: PgnMetadata;
 }
 
-// Fixed pill colors — dark enough for white text on every theme
-const ACC_COLORS = [
-  { min: 90, bg: '#15803d' },  // green-700
-  { min: 75, bg: '#3f6212' },  // lime-800
-  { min: 60, bg: '#a16207' },  // yellow-700
-  { min: 45, bg: '#c2410c' },  // orange-700
-  { min: 0,  bg: '#b91c1c' },  // red-700
-] as const;
-
-function accBg(value: number): string {
-  return ACC_COLORS.find((c) => value >= c.min)!.bg;
-}
-
 function AccuracyPill({ value }: { value: number }) {
   return (
     <span
       className="inline-block px-2 py-0.5 rounded text-xs font-bold"
-      style={{ backgroundColor: accBg(value), color: '#ffffff' }}
+      style={{ backgroundColor: accuracyBg(value), color: '#ffffff' }}
     >
       {value}% doğruluk
     </span>
@@ -31,13 +19,7 @@ function AccuracyPill({ value }: { value: number }) {
 }
 
 function EloRing({ elo }: { elo: number }) {
-  const colorVar =
-    elo >= 2400 ? '--clr-elo-5' :
-    elo >= 2000 ? '--clr-elo-4' :
-    elo >= 1700 ? '--clr-elo-3' :
-    elo >= 1400 ? '--clr-elo-2' :
-                  '--clr-elo-1';
-  const color = `var(${colorVar})`;
+  const color = eloColor(elo);
 
   return (
     <div className="flex flex-col items-center gap-1">

@@ -59,7 +59,12 @@ export interface FontOption {
   name: string;
   stack: string;
   preview: string;
-  googleFont?: string;  // Google Fonts family+weight param
+  /**
+   * Loads the font's CSS (and its woff2 files) the first time the font is picked.
+   * The fonts are bundled with the site (@fontsource-variable, latin + latin-ext
+   * so Turkish letters work) — nothing is fetched from Google.
+   */
+  load?: () => Promise<unknown>;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -72,23 +77,23 @@ export const FONT_OPTIONS: FontOption[] = [
   {
     id: 'inter',
     name: 'Inter',
-    stack: "'Inter', sans-serif",
+    stack: "'Inter Variable', system-ui, sans-serif",
     preview: 'Abc 123',
-    googleFont: 'Inter:wght@400;500;600;700',
+    load: () => import('@fontsource-variable/inter/index.css'),
   },
   {
     id: 'nunito',
     name: 'Nunito',
-    stack: "'Nunito', sans-serif",
+    stack: "'Nunito Variable', system-ui, sans-serif",
     preview: 'Abc 123',
-    googleFont: 'Nunito:wght@400;500;600;700',
+    load: () => import('@fontsource-variable/nunito/index.css'),
   },
   {
     id: 'fira',
     name: 'Fira Code',
-    stack: "'Fira Code', monospace",
+    stack: "'Fira Code Variable', ui-monospace, monospace",
     preview: 'Abc 123',
-    googleFont: 'Fira+Code:wght@400;500;600;700',
+    load: () => import('@fontsource-variable/fira-code/index.css'),
   },
 ];
 

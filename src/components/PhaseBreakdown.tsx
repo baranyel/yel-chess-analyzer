@@ -1,5 +1,6 @@
 import type { AnalyzedMove, PgnMetadata } from '../lib/types';
 import { computePhaseBreakdown, type PhasePlayerStats } from '../lib/phases';
+import { accuracyBg, eloColor } from '../lib/ui';
 
 interface Props {
   moves: AnalyzedMove[];
@@ -12,26 +13,6 @@ const PHASE_LABELS = [
   { key: 'endgame'    as const, label: 'Oyun Sonu', range: 'Figür sayısı azaldıktan sonra' },
 ];
 
-const ACC_COLORS = [
-  { min: 90, bg: '#15803d' },
-  { min: 75, bg: '#3f6212' },
-  { min: 60, bg: '#a16207' },
-  { min: 45, bg: '#c2410c' },
-  { min: 0,  bg: '#b91c1c' },
-] as const;
-
-function accBg(v: number) {
-  return ACC_COLORS.find((c) => v >= c.min)!.bg;
-}
-
-function eloColor(elo: number) {
-  if (elo >= 2400) return 'var(--clr-elo-5)';
-  if (elo >= 2000) return 'var(--clr-elo-4)';
-  if (elo >= 1700) return 'var(--clr-elo-3)';
-  if (elo >= 1400) return 'var(--clr-elo-2)';
-  return 'var(--clr-elo-1)';
-}
-
 function PlayerPhaseStats({ stats, name }: { stats: PhasePlayerStats; name: string }) {
   const empty = stats.moveCount === 0;
   return (
@@ -43,7 +24,7 @@ function PlayerPhaseStats({ stats, name }: { stats: PhasePlayerStats; name: stri
         <>
           <span
             className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold"
-            style={{ backgroundColor: accBg(stats.accuracy), color: '#fff' }}
+            style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
           >
             {stats.accuracy}%
           </span>
