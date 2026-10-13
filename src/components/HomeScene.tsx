@@ -60,13 +60,13 @@ export function HomeScene({ className = '' }: { className?: string }) {
         aria-hidden="true"
         className="absolute z-10 pointer-events-none origin-top-right scale-[.5] sm:scale-[.7] xl:scale-100 right-2 -top-4 xl:right-7 xl:-top-6"
       >
-        <Sticker piece="bK" size={240} rotate={-8} />
+        <Sticker piece="bK" size={240} rotate={-8} className="slap" />
       </div>
       <div
         aria-hidden="true"
-        className="absolute z-10 pointer-events-none origin-top-right scale-[.5] sm:scale-[.7] xl:scale-100 right-20 top-20 sm:right-24 sm:top-24 xl:right-[13.5rem] xl:top-24"
+        className="absolute z-10 pointer-events-none origin-top-right max-sm:hidden sm:scale-[.7] xl:scale-100 sm:right-24 sm:top-24 xl:right-[13.5rem] xl:top-24"
       >
-        <Sticker piece="bN" size={150} rotate={10} ring />
+        <Sticker piece="bN" size={150} rotate={10} ring className="slap" style={{ "--slap-delay": ".14s" } as React.CSSProperties} />
       </div>
 
       <Window title="Yeni analiz" className="flex-1" bodyClassName="overflow-y-auto">

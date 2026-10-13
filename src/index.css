@@ -321,3 +321,15 @@ textarea:focus-visible, input:focus-visible { outline: 2px solid var(--hot); out
   font-weight: 400;
   letter-spacing: .01em;
 }
+
+/* The one orchestrated motion: stickers get slapped onto the home window, once.
+   (Reduced-motion users get the final frame, see the media query above.) */
+@keyframes slap {
+  0%   { scale: 1.5; opacity: 0; }
+  55%  { opacity: 1; }
+  100% { scale: 1; opacity: 1; }
+}
+.slap {
+  animation: slap .34s cubic-bezier(.2, .9, .3, 1.15) both;
+  animation-delay: var(--slap-delay, 0s);
+}

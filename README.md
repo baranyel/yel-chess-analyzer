@@ -2,6 +2,10 @@
 
 Açık kaynaklı satranç motoruyla (Stockfish) maçlarınızı **kendi bilgisayarınızda, ücretsiz** analiz eden bir web uygulaması. PGN, FEN veya `.pgn` dosyası yükleyin; her hamle motorla değerlendirilir, sınıflandırılır ve oyun özeti çıkarılır. Sunucu yok: motor tarayıcınızda bir Web Worker olarak çalışır.
 
+![Açılış ekranı](docs/home.png)
+
+![Analiz ekranı](docs/analysis.png)
+
 ## Özellikler
 
 - **Tam oyun analizi** — PGN yapıştırın ya da `.pgn` dosyası seçin/sürükleyin. Çok oyunlu dosyalarda ilk oyun yüklenir. `[FEN]` başlıklı (özel başlangıç pozisyonlu) oyunlar desteklenir.
@@ -13,7 +17,8 @@ Açık kaynaklı satranç motoruyla (Stockfish) maçlarınızı **kendi bilgisay
 - **Analiz geçmişi** — biten analizler tarayıcıda saklanır (en çok 50), listeden tek tıkla açılır.
 - **Benchmark** — aynı maçı birden çok kez analiz edip motorun tutarlılığını ölçün.
 - **Performans ayarları** — motor (Stockfish 18 / Lite), derinlik (8–24), paralel işçi sayısı, hash belleği. Tek iş parçacıklı WASM motor, pozisyonları işçilere dağıtarak paralelleştirilir.
-- **Kişiselleştirme** — 4 site teması, 8 tahta rengi, 5 taş seti, 4 yazı tipi, tahta boyutu.
+- **Değerlendirme grafiği** — hamle hamle kimin üstün olduğunu gösterir; tıklayınca o pozisyona gider.
+- **Görünüm** — Windows XP "Bliss" masaüstü havasında iki tema (gündüz / gece). Açılıştaki halftone sticker taşlar projenin kendi taş SVG'lerinden tarayıcıda üretilir; hazır görsel indirilmez. Ayrıca 8 tahta rengi, 5 taş seti, 4 yazı tipi ve tahta boyutu seçilebilir.
 
 ## Gizlilik
 
@@ -66,6 +71,9 @@ src/
 │   ├── pgn.ts                # PGN/FEN ayrıştırma, çok oyunlu dosya bölme
 │   ├── summary.ts            # oyuncu ve oyun istatistikleri
 │   ├── phases.ts             # açılış / orta oyun / oyun sonu
+│   ├── sticker.ts            # taş SVG'sinden halftone sticker üretimi (saf piksel fonksiyonları)
+│   ├── evalGraph.ts          # değerlendirme grafiği geometrisi
+│   ├── orientation.ts        # tahta yönü, rozet konumu
 │   ├── accounts.ts           # Lichess + Chess.com oyun listeleri
 │   ├── accountAnalysis.ts    # çok oyunlu hesap analizi
 │   ├── analysisHistory.ts    # analiz geçmişi (kayıt başına anahtar + indeks)
@@ -73,7 +81,7 @@ src/
 │   ├── engines.ts            # kullanılabilir motorlar
 │   └── engineConfig.ts       # MultiPV, hash bütçesi, işçi sayısı varsayılanları
 ├── context/                  # AnalysisContext (durum + iptal), PrefsContext (tercihler)
-├── components/               # RightPanel, AccountPanel, MoveList, PositionCard, …
+├── components/               # Desktop, Window, HomeScene, BoardWindow, RightPanel, SettingsPane, EvalGraph, Sticker, …
 └── test/                     # test yardımcıları (bellek içi localStorage, fixture'lar)
 public/
 ├── pieces/                   # taş setleri

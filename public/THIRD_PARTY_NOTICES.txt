@@ -47,6 +47,7 @@ src/lib/themes.ts).
 
 3. FONTS (bundled via @fontsource-variable, SIL Open Font License 1.1)
 ----------------------------------------------------------------------
+  Pixelify Sans  © The Pixelify Sans Project Authors  https://github.com/eifetx/Pixelify-Sans
   Inter       © The Inter Project Authors          https://github.com/rsms/inter
   Nunito      © The Nunito Project Authors         https://github.com/googlefonts/nunito
   Fira Code   © The Fira Code Project Authors      https://github.com/tonsky/FiraCode
