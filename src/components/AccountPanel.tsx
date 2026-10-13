@@ -23,6 +23,8 @@ interface Props {
   /** Returns an error message when the game could not be loaded, else null. */
   onGameLoad: (pgn: string) => string | null;
   onRestoreAnalysis: (record: AnalysisRecord) => void;
+  /** Reports whether an account analysis is running (so the rest of the UI can avoid starting a second engine run). */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const NO_PROGRESS: AccountProgress = { done: 0, total: 0, currentGame: '', fraction: 0, etaMs: null };
@@ -75,7 +77,7 @@ function GameRow({ game, onLoad, analyzed }: { game: GameSummary; onLoad: () => 
   );
 }
 
-export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
+export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Props) {
   const saved = loadSavedUsernames();
   const [platform, setPlatform] = useState<Platform>('lichess');
   const [username, setUsername] = useState(saved[platform] ?? '');
@@ -90,7 +92,9 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
   const [analysisResult, setAnalysisResult] = useState<AccountAnalysisResult | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const { state: { engineId, depth, workerCount, hashMb } } = useAnalysis();
+  const { state: { engineId, depth, workerCount, hashMb, status: mainStatus } } = useAnalysis();
+  const mainBusy = mainStatus === 'analyzing';
+  const analyzing = view === 'analyzing';
 
   // Restore saved username when platform changes
   useEffect(() => {
@@ -101,7 +105,12 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
     setView('list');
   }, [platform]);
 
-  const handleFetch = async () => {
+  useEffect(() => { onBusyChange?.(analyzing); }, [analyzing, onBusyChange]);
+
+  // Never leave engines running when the panel goes away.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const handleFetch = async (force = false) => {
     const trimmed = username.trim();
     if (!trimmed) return;
     saveUsername(platform, trimmed);
@@ -111,8 +120,8 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
     setView('list');
     try {
       const result = platform === 'lichess'
-        ? await fetchLichessGames(trimmed)
-        : await fetchChessComGames(trimmed);
+        ? await fetchLichessGames(trimmed, 15, force)
+        : await fetchChessComGames(trimmed, 15, force);
       if (result.length === 0) {
         setError('Maç bulunamadı.');
       } else {
@@ -126,12 +135,12 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleFetch();
+    if (e.key === 'Enter' && !analyzing) handleFetch();
   };
 
   const handleStartAccountAnalysis = async () => {
     const trimmed = username.trim();
-    if (!trimmed || games.length === 0) return;
+    if (!trimmed || games.length === 0 || mainBusy) return;
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -172,15 +181,16 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Platform seçici */}
       <div className="shrink-0 flex gap-1.5 p-3 pb-2">
         {(['lichess', 'chesscom'] as Platform[]).map((p) => (
           <button
             key={p}
             onClick={() => setPlatform(p)}
+            disabled={analyzing}
             className={[
-              'flex-1 py-2 rounded border text-xs font-semibold transition-colors',
+              'flex-1 py-2 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               platform === p
                 ? 'border-accent bg-accent-dim text-accent'
                 : 'border-base text-muted hover-surface',
@@ -203,11 +213,11 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
           placeholder="Kullanıcı adı"
           className="flex-1 bg-surface-2 border border-base rounded px-2.5 py-1.5 text-xs text-base focus:outline-none focus:border-accent transition-colors"
           style={{ '--tw-ring-color': 'var(--accent)' } as React.CSSProperties}
-          disabled={loading || view === 'analyzing'}
+          disabled={loading || analyzing}
         />
         <button
-          onClick={handleFetch}
-          disabled={loading || !username.trim() || view === 'analyzing'}
+          onClick={() => handleFetch()}
+          disabled={loading || !username.trim() || analyzing}
           className="px-3 py-1.5 rounded text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
         >
@@ -276,7 +286,9 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
           )}
 
           {error && !loading && (
-            <p className="text-xs text-danger text-center py-6">{error}</p>
+            <p role="alert" className={`text-xs text-danger text-center ${games.length > 0 ? 'pb-2' : 'py-6'}`}>
+              {error}
+            </p>
           )}
 
           {!loading && !error && games.length === 0 && (
@@ -292,16 +304,30 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
                 <p className="text-[10px] text-faint">
                   {games.length} maç — analiz için tıklayın
                 </p>
+                <button
+                  onClick={() => handleFetch(true)}
+                  className="text-[10px] text-muted hover:text-accent transition-colors"
+                  title="Önbelleği atlayıp listeyi yeniden getir"
+                >
+                  ↻ Yenile
+                </button>
               </div>
 
               {/* Hesap analizi butonu */}
               <button
                 onClick={handleStartAccountAnalysis}
-                className="w-full mb-2 py-2 rounded border text-xs font-semibold transition-colors"
+                disabled={mainBusy}
+                title={mainBusy ? 'Tek maç analizi sürerken başlatılamaz.' : undefined}
+                className="w-full mb-2 py-2 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}
               >
                 Tüm Maçları Analiz Et — Tahmini Rating Çıkar
               </button>
+              {mainBusy && (
+                <p className="text-[10px] text-faint mb-2 text-center">
+                  Tek maç analizi sürüyor; bitince veya durdurunca başlatabilirsiniz.
+                </p>
+              )}
 
               {games.map((game) => {
                 const gameId = computeGameId(game.pgn.trim());

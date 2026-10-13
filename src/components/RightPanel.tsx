@@ -38,6 +38,7 @@ export function RightPanel() {
   const [tab, setTab] = useState<Tab>('giris');
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [benchmarkKey, setBenchmarkKey] = useState(0);
+  const [accountBusy, setAccountBusy] = useState(false);
 
   const isDone = status === 'done';
   const isAnalyzing = status === 'analyzing';
@@ -152,7 +153,9 @@ export function RightPanel() {
         )}
 
         {/* ── Hesap ────────────────────────────────────────────────── */}
-        {tab === 'hesap' && (
+        {/* Always mounted (just hidden): switching tabs must not drop the game list
+            or the progress of a running account analysis. */}
+        <div className={tab === 'hesap' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
           <AccountPanel
             onGameLoad={(pgn) => {
               const err = loadGame(pgn);
@@ -163,8 +166,9 @@ export function RightPanel() {
               restoreAnalysis(record);
               setTab('hamleler');
             }}
+            onBusyChange={setAccountBusy}
           />
-        )}
+        </div>
 
         {/* ── Hamleler ─────────────────────────────────────────────── */}
         {tab === 'hamleler' && hasGame && totalMoves === 0 && (
@@ -526,7 +530,9 @@ export function RightPanel() {
           )}
           <button
             onClick={handleStartAnalysis}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors"
+            disabled={accountBusy}
+            title={accountBusy ? 'Hesap analizi sürerken başlatılamaz.' : undefined}
+            className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
           >
             {analysisError
@@ -537,6 +543,11 @@ export function RightPanel() {
                   ? 'Pozisyonu Analiz Et'
                   : 'Analizi Başlat'}
           </button>
+          {accountBusy && (
+            <p className="text-[10px] text-faint text-center">
+              Hesap analizi sürüyor; bitince veya iptal edince başlatabilirsiniz.
+            </p>
+          )}
           {isDone && summary && (
             <button
               onClick={handleSave}

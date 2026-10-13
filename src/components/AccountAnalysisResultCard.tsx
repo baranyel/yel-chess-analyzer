@@ -56,7 +56,7 @@ const PHASE_LABELS: Array<{ key: keyof PlayerPhaseBreakdown; label: string }> = 
 ];
 
 export function AccountAnalysisResultCard({ result, onClose }: Props) {
-  const { stats, phaseBreakdown, gamesAnalyzed, username } = result;
+  const { stats, phaseBreakdown, gamesAnalyzed, skipped, username } = result;
   const eloClr = eloColor(stats.estimatedElo);
 
   return (
@@ -65,6 +65,14 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
       <div>
         <h3 className="text-xs font-bold text-base truncate">{username}</h3>
         <p className="text-[10px] text-faint">{gamesAnalyzed} maç analiz edildi</p>
+        {skipped > 0 && (
+          <p className="text-[10px] text-faint">
+            {skipped} maç atlandı (desteklenmeyen varyant, okunamayan PGN veya oyuncu bulunamadı)
+          </p>
+        )}
+        {gamesAnalyzed === 0 && (
+          <p className="text-[10px] text-danger mt-1">Analiz edilebilen maç yok; rating hesaplanamadı.</p>
+        )}
       </div>
 
       {/* Elo ring + accuracy */}
