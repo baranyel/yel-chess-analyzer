@@ -36,6 +36,12 @@ jobs:
         # postinstall automatically runs scripts/copy-stockfish.mjs
         # which copies the WASM files from node_modules into public/stockfish/
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
         env:

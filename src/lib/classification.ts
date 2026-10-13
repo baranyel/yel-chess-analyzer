@@ -1,10 +1,21 @@
 import type { MoveClassification, EvalResult } from './types';
 
-// Cap mate distance at this centipawn equivalent for arithmetic purposes
+// Mate scores are treated as this many centipawns for win-probability math
+// (the sigmoid saturates, so the exact value does not matter there).
 const MATE_CP = 10_000;
+
+// Centipawn-loss / ACPL math clamps every evaluation to ±CP_CLAMP, like Lichess.
+// Without it a single missed mate (+M3 → +5.0) costs 9 500 cp and one decided
+// position (+20 → +8) costs 1 200 cp, which wrecks ACPL and the Elo estimate.
+export const CP_CLAMP = 1000;
 
 export function evalToCp(e: EvalResult): number {
   return e.type === 'mate' ? (e.value > 0 ? MATE_CP : -MATE_CP) : e.value;
+}
+
+export function clampedCp(e: EvalResult): number {
+  if (e.type === 'mate') return e.value > 0 ? CP_CLAMP : -CP_CLAMP;
+  return Math.max(-CP_CLAMP, Math.min(CP_CLAMP, e.value));
 }
 
 // ── Win probability model (Lichess / Chess.com sigmoid) ───────────────────
@@ -49,16 +60,7 @@ export function computeCpLoss(
   color: 'w' | 'b',
 ): number {
   const sign = color === 'w' ? 1 : -1;
-  return Math.max(0, evalToCp(bestEval) * sign - evalToCp(playedEval) * sign);
-}
-
-export function computeSecondBestCpLoss(
-  bestEval: EvalResult,
-  secondBestEval: EvalResult | null,
-  color: 'w' | 'b',
-): number {
-  if (!secondBestEval) return 9999;
-  return computeCpLoss(bestEval, secondBestEval, color);
+  return Math.max(0, clampedCp(bestEval) * sign - clampedCp(playedEval) * sign);
 }
 
 // ── Classification ────────────────────────────────────────────────────────
@@ -71,7 +73,9 @@ export function classifyMove(
 ): MoveClassification {
   if (!bestUci) return 'unknown';
 
-  const isExactBest = playedUci.slice(0, 4) === bestUci.slice(0, 4);
+  // Compare the full UCI string so an under-promotion (e7e8n) is not mistaken
+  // for the engine's queen promotion (e7e8q).
+  const isExactBest = playedUci.toLowerCase() === bestUci.toLowerCase();
 
   if (isExactBest) {
     if (secondBestWinPctLoss >= CLASSIFICATION_THRESHOLDS.kusursuzSecondBest) return 'kusursuz';
