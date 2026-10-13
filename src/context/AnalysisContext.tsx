@@ -28,6 +28,8 @@ interface AnalysisState {
   status: AnalysisStatus;
   /** Set when the last analysis run failed (engine crash / load failure). The loaded game is kept. */
   analysisError: string | null;
+  /** Set when a finished analysis could not be stored (browser storage full). */
+  storageWarning: string | null;
   /** While analyzing: are the engines still loading, or already searching? */
   engineStage: EngineStage | null;
   metadata: PgnMetadata | null;
@@ -50,6 +52,7 @@ interface AnalysisState {
 const initialState: AnalysisState = {
   status: 'idle',
   analysisError: null,
+  storageWarning: null,
   engineStage: null,
   metadata: null,
   moves: [],
@@ -76,6 +79,7 @@ type Action =
   | { type: 'ANALYSIS_DONE'; summary: GameSummaryStats | null; positionAnalysis: PositionAnalysis }
   | { type: 'ANALYSIS_FAILED'; message: string }
   | { type: 'ANALYSIS_STOPPED' }
+  | { type: 'STORAGE_WARNING'; message: string }
   | { type: 'NAVIGATE'; index: number }
   | { type: 'SET_DEPTH'; depth: number }
   | { type: 'SET_ENGINE'; engineId: string }
@@ -91,6 +95,7 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         ...state,
         status: 'ready',
         analysisError: null,
+        storageWarning: null,
         engineStage: null,
         metadata: action.metadata,
         fens: action.fens,
@@ -109,6 +114,7 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         ...state,
         status: 'analyzing',
         analysisError: null,
+        storageWarning: null,
         engineStage: 'loading-engine',
         moves: [],
         analyzedCount: 0,
@@ -142,6 +148,9 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
     case 'ANALYSIS_STOPPED':
       return { ...state, status: 'ready', engineStage: null };
 
+    case 'STORAGE_WARNING':
+      return { ...state, storageWarning: action.message };
+
     case 'NAVIGATE':
       return { ...state, currentIndex: action.index };
 
@@ -163,6 +172,7 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         ...state,
         status: 'done',
         analysisError: null,
+        storageWarning: null,
         engineStage: null,
         metadata: r.metadata,
         fens: r.fens,
@@ -288,7 +298,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'ANALYSIS_DONE', summary, positionAnalysis: result.lastPosition });
 
       if (summary && metadata) {
-        saveAnalysisRecord({
+        const saved = saveAnalysisRecord({
           gameId: computeGameId(rawInputRef.current),
           pgn: rawInputRef.current,
           analyzedAt: Date.now(),
@@ -300,6 +310,12 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
           sanMoves,
           metadata,
         });
+        if (!saved.ok) {
+          dispatch({
+            type: 'STORAGE_WARNING',
+            message: 'Analiz geçmişe kaydedilemedi: tarayıcı depolaması dolu. Benchmark sekmesindeki eski kayıtları silerek yer açabilirsiniz.',
+          });
+        }
       }
     } catch (err) {
       if (signal.aborted || isAbortError(err)) return;

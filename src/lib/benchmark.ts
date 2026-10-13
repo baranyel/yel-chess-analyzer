@@ -1,4 +1,8 @@
-import type { AnalyzedMove, GameSummaryStats } from './types';
+import { clampedCp } from './classification';
+import type { AnalyzedMove, EvalResult, GameSummaryStats } from './types';
+
+/** The only per-move data the consistency report needs — no FENs, no alternatives. */
+export type BenchmarkMove = Pick<AnalyzedMove, 'evalAfter' | 'classification'>;
 
 export interface BenchmarkRun {
   id: string;
@@ -7,7 +11,7 @@ export interface BenchmarkRun {
   engineName: string;
   depth: number;
   timestamp: number;
-  moves: AnalyzedMove[];
+  moves: BenchmarkMove[];
   summary: GameSummaryStats;
   metadata: { white: string; black: string; event: string };
 }
@@ -26,6 +30,7 @@ export interface ConsistencyReport {
 }
 
 const STORAGE_KEY = 'yelSatranc_benchmark_v1';
+const MAX_RUNS = 30;
 
 function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -39,12 +44,30 @@ export function computeGameId(rawInput: string): string {
   return (h >>> 0).toString(36);
 }
 
-export function saveRun(run: Omit<BenchmarkRun, 'id'>): BenchmarkRun {
-  const saved: BenchmarkRun = { ...run, id: uid() };
-  const all = loadAllRuns();
-  all.push(saved);
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch { /* storage full */ }
-  return saved;
+function slimRun(run: BenchmarkRun): BenchmarkRun {
+  return {
+    ...run,
+    moves: run.moves.map((m) => ({ evalAfter: m.evalAfter, classification: m.classification })),
+  };
+}
+
+/**
+ * Saves a run, keeping at most MAX_RUNS (oldest dropped first). Returns null
+ * when it could not be stored even after dropping older runs (storage full).
+ */
+export function saveRun(run: Omit<BenchmarkRun, 'id'>): BenchmarkRun | null {
+  const saved = slimRun({ ...run, id: uid() });
+  // Re-slimming the existing runs also shrinks ones saved by older versions.
+  let all = [...loadAllRuns().map(slimRun), saved].slice(-MAX_RUNS);
+  for (;;) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+      return saved;
+    } catch {
+      if (all.length <= 1) return null;
+      all = all.slice(1);
+    }
+  }
 }
 
 export function loadAllRuns(): BenchmarkRun[] {
@@ -71,10 +94,10 @@ function stdDev(vals: number[]): number {
   return Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
 }
 
-function evalToCp(e: { type: 'cp' | 'mate'; value: number } | null): number {
-  if (!e) return 0;
-  if (e.type === 'mate') return e.value > 0 ? 10000 : -10000;
-  return e.value;
+// Same ±1000 cp clamp as the ACPL math, so a mate ↔ centipawn flip does not
+// dominate the evaluation-spread metric.
+function evalToCp(e: EvalResult | null): number {
+  return e ? clampedCp(e) : 0;
 }
 
 export function computeConsistency(runs: BenchmarkRun[]): ConsistencyReport | null {
@@ -86,9 +109,9 @@ export function computeConsistency(runs: BenchmarkRun[]): ConsistencyReport | nu
   let agreements = 0;
 
   for (let i = 0; i < moveCount; i++) {
-    const evals = runs.map((r) => evalToCp(r.moves[i].evalAfter));
+    const evals = runs.map((r) => evalToCp(r.moves[i]!.evalAfter));
     totalEvalStdDev += stdDev(evals);
-    const classes = runs.map((r) => r.moves[i].classification);
+    const classes = runs.map((r) => r.moves[i]!.classification);
     if (classes.every((c) => c === classes[0])) agreements++;
   }
 
@@ -98,9 +121,9 @@ export function computeConsistency(runs: BenchmarkRun[]): ConsistencyReport | nu
   const consistencyScore = Math.round(classificationAgreementPct * 0.6 + evalConsistency * 0.4);
 
   return {
-    engineId: runs[0].engineId,
-    engineName: runs[0].engineName,
-    depth: runs[0].depth,
+    engineId: runs[0]!.engineId,
+    engineName: runs[0]!.engineName,
+    depth: runs[0]!.depth,
     runCount: runs.length,
     avgEvalStdDevCp,
     classificationAgreementPct,

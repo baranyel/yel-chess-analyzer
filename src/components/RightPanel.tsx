@@ -31,12 +31,13 @@ type Tab = 'giris' | 'hesap' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 export function RightPanel() {
   const { state, loadGame, startAnalysis, stopAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
   const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
-  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId, analysisError, engineStage } = state;
+  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId, analysisError, storageWarning, engineStage } = state;
 
   const [pgnText, setPgnText] = useState('');
   const [pgnError, setPgnError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('giris');
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [benchmarkKey, setBenchmarkKey] = useState(0);
   const [accountBusy, setAccountBusy] = useState(false);
 
@@ -59,7 +60,8 @@ export function RightPanel() {
 
   const handleSave = () => {
     const run = saveCurrentAnalysis();
-    if (!run) return;
+    if (!run) { setSaveFailed(true); return; }
+    setSaveFailed(false);
     setSavedFeedback(true);
     setBenchmarkKey((k) => k + 1);
     setTimeout(() => setSavedFeedback(false), 2000);
@@ -556,6 +558,14 @@ export function RightPanel() {
             >
               {savedFeedback ? '✓ Kaydedildi!' : 'Benchmark\'e Kaydet'}
             </button>
+          )}
+          {saveFailed && (
+            <p role="alert" className="text-[10px] text-danger text-center">
+              Kaydedilemedi: tarayıcı depolaması dolu. Eski benchmark kayıtlarını silin.
+            </p>
+          )}
+          {storageWarning && (
+            <p role="alert" className="text-[10px] text-danger text-center">{storageWarning}</p>
           )}
         </div>
       )}

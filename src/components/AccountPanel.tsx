@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   fetchLichessGames,
   fetchChessComGames,
@@ -8,8 +8,8 @@ import {
   type GameSummary,
 } from '../lib/accounts';
 import {
-  hasAnalysisRecord,
   loadAnalysisRecord,
+  loadHistoryIndex,
   computeGameId,
   type AnalysisRecord,
 } from '../lib/analysisHistory';
@@ -49,7 +49,7 @@ function ResultBadge({ result }: { result: string }) {
   );
 }
 
-function GameRow({ game, onLoad, analyzed }: { game: GameSummary; onLoad: () => void; analyzed: boolean }) {
+function GameRow({ game, onLoad, analyzedDepth }: { game: GameSummary; onLoad: () => void; analyzedDepth: number | null }) {
   return (
     <button
       onClick={onLoad}
@@ -67,8 +67,10 @@ function GameRow({ game, onLoad, analyzed }: { game: GameSummary; onLoad: () => 
         <div className="text-[10px] text-faint mt-0.5 flex gap-2">
           <span>{game.date}</span>
           {game.timeControl && <span>· {game.timeControl}</span>}
-          {analyzed && (
-            <span className="font-semibold" style={{ color: 'var(--success, #4caf50)' }}>✓ Analiz edildi</span>
+          {analyzedDepth !== null && (
+            <span className="font-semibold" style={{ color: 'var(--success, #4caf50)' }}>
+              ✓ Analiz edildi · d{analyzedDepth}
+            </span>
           )}
         </div>
       </div>
@@ -95,6 +97,16 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
   const { state: { engineId, depth, workerCount, hashMb, status: mainStatus } } = useAnalysis();
   const mainBusy = mainStatus === 'analyzing';
   const analyzing = view === 'analyzing';
+
+  // One small read of the history index instead of a lookup per row per render.
+  // Re-read whenever an analysis (single game or account) may have saved something.
+  const [historyIndex, setHistoryIndex] = useState(loadHistoryIndex);
+  useEffect(() => { setHistoryIndex(loadHistoryIndex()); }, [view, mainStatus, games]);
+
+  const rows = useMemo(
+    () => games.map((game) => ({ game, gameId: computeGameId(game.pgn.trim()) })),
+    [games],
+  );
 
   // Restore saved username when platform changes
   useEffect(() => {
@@ -329,18 +341,18 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
                 </p>
               )}
 
-              {games.map((game) => {
-                const gameId = computeGameId(game.pgn.trim());
-                const analyzed = hasAnalysisRecord(gameId);
+              {rows.map(({ game, gameId }) => {
+                const entry = historyIndex.get(gameId);
                 return (
                   <GameRow
                     key={game.id}
                     game={game}
-                    analyzed={analyzed}
+                    analyzedDepth={entry ? entry.depth : null}
                     onLoad={() => {
-                      if (analyzed) {
+                      if (entry) {
                         const record = loadAnalysisRecord(gameId);
                         if (record) { setError(null); onRestoreAnalysis(record); return; }
+                        setHistoryIndex(loadHistoryIndex()); // record was gone/corrupt
                       }
                       setError(onGameLoad(game.pgn));
                     }}
