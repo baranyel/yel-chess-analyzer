@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { Chess } from 'chess.js';
 import { parseFen, parsePgn } from './pgn';
+import { uciToSan } from './chessUtils';
 
 describe('parsePgn', () => {
   it('parses moves, headers and one FEN per position', () => {
@@ -17,6 +19,46 @@ describe('parsePgn', () => {
   it('throws when there are no moves', () => {
     expect(() => parsePgn('[White "A"]\n[Black "B"]\n\n*')).toThrow();
   });
+
+  it('loads a game that starts from a [FEN] header position', () => {
+    const r = parsePgn(
+      `[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"]\n\n1. e4 Kd7 2. e5 *`,
+    );
+    expect(r.moves).toEqual(['e4', 'Kd7', 'e5']);
+    expect(r.fens).toHaveLength(4);
+    expect(r.fens[0]).toBe('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1');
+  });
+
+  it('supports a game where Black moves first', () => {
+    const r = parsePgn(
+      `[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/4P3/4K3 b - - 0 1"]\n\n1... Kd7 2. e4 *`,
+    );
+    expect(r.moves).toEqual(['Kd7', 'e4']);
+    expect(r.fens[0]!.split(' ')[1]).toBe('b');
+  });
+
+  it('keeps the FEN list aligned with the moves', () => {
+    const r = parsePgn('1. e4 e5 2. Nf3');
+    const c = new Chess();
+    expect(r.fens[0]).toBe(c.fen());
+    c.move('e4');
+    expect(r.fens[1]).toBe(c.fen());
+    c.move('e5');
+    c.move('Nf3');
+    expect(r.fens[3]).toBe(c.fen());
+    expect(r.fens).toHaveLength(r.moves.length + 1);
+  });
+
+  it('rejects unsupported variants with a clear message', () => {
+    const chess960 = `[Variant "Chess960"]\n[FEN "bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w HFhf - 0 1"]\n\n1. e4 e5 *`;
+    expect(() => parsePgn(chess960)).toThrow(/Chess960.*desteklenmiyor/);
+    expect(() => parsePgn(`[Variant "Atomic"]\n\n1. e4 e5 *`)).toThrow(/Atomic/);
+  });
+
+  it('accepts the standard / from-position variants', () => {
+    expect(() => parsePgn(`[Variant "Standard"]\n\n1. e4 e5 *`)).not.toThrow();
+    expect(() => parsePgn(`[Variant "From Position"]\n\n1. e4 e5 *`)).not.toThrow();
+  });
 });
 
 describe('parseFen', () => {
@@ -28,5 +70,24 @@ describe('parseFen', () => {
 
   it('throws on an invalid FEN', () => {
     expect(() => parseFen('not a fen')).toThrow();
+  });
+});
+
+describe('uciToSan', () => {
+  const START = new Chess().fen();
+
+  it('converts a normal move and a capture/check', () => {
+    expect(uciToSan(START, 'e2e4')).toBe('e4');
+    expect(uciToSan(START, 'g1f3')).toBe('Nf3');
+  });
+
+  it('handles promotion and castling', () => {
+    expect(uciToSan('8/4P3/8/8/8/8/k7/4K3 w - - 0 1', 'e7e8q')).toBe('e8=Q');
+    expect(uciToSan('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1', 'e1g1')).toBe('O-O');
+  });
+
+  it('falls back to the raw UCI text for an illegal or malformed move', () => {
+    expect(uciToSan(START, 'e2e5')).toBe('e2e5');
+    expect(uciToSan(START, 'xx')).toBe('xx');
   });
 });

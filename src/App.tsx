@@ -5,6 +5,7 @@ import { usePrefs } from './context/PrefsContext';
 import { EvalBar } from './components/EvalBar';
 import { MoveDetail } from './components/MoveDetail';
 import { NavigationControls } from './components/NavigationControls';
+import { PositionCard } from './components/PositionCard';
 import { RightPanel } from './components/RightPanel';
 import { BOARD_COLORS, PIECE_SETS } from './lib/themes';
 import { CLASSIFICATION_STYLES, type ClassificationStyle } from './lib/classification';
@@ -92,12 +93,14 @@ function ClassificationBadge({
 export default function App() {
   const { state, navigate, reset } = useAnalysis();
   const { prefs } = usePrefs();
-  const { status, fens, moves, currentIndex, metadata } = state;
+  const { status, fens, moves, currentIndex, metadata, positionAnalysis } = state;
 
   const hasGame = status !== 'idle';
   const currentFen = hasGame && fens.length > 0 ? (fens[currentIndex] ?? START_FEN) : START_FEN;
   const currentMove = currentIndex > 0 ? (moves[currentIndex - 1] ?? null) : null;
-  const currentEval = currentMove?.evalAfter ?? (moves[0]?.evalBefore ?? null);
+  const isFenMode = hasGame && fens.length === 1;
+  const currentEval =
+    currentMove?.evalAfter ?? moves[0]?.evalBefore ?? (isFenMode ? (positionAnalysis?.eval ?? null) : null);
   const boardMoveCount = hasGame ? fens.length - 1 : 0;
 
   // Cap board size so it always fits on screen (padding 12px each side + eval bar ~34px)
@@ -182,7 +185,11 @@ export default function App() {
           </div>
 
           <div style={{ width: boardSize + 30 }}>
-            <MoveDetail move={currentMove} />
+            {isFenMode ? (
+              <PositionCard fen={currentFen} analysis={positionAnalysis} analyzing={status === 'analyzing'} />
+            ) : (
+              <MoveDetail move={currentMove} />
+            )}
           </div>
         </div>
 
