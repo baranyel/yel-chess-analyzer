@@ -50,6 +50,11 @@ describe('analysis history', () => {
     expect([...index.keys()]).toEqual(['b', 'a']);      // newest first
   });
 
+  it('keeps the names, result and length in the index for the recent-analyses list', () => {
+    saveAnalysisRecord(makeRecord('a', { plies: 6 }));
+    expect(loadHistoryIndex().get('a')).toMatchObject({ white: 'a', black: 'b', plies: 6 });
+  });
+
   it('replaces a record with the same id instead of duplicating it', () => {
     saveAnalysisRecord(makeRecord('a', { depth: 10 }));
     saveAnalysisRecord(makeRecord('a', { depth: 22 }));

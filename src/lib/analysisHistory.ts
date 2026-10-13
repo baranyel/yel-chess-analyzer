@@ -23,6 +23,11 @@ export interface HistoryIndexEntry {
   depth: number;
   engineId: string;
   analyzedAt: number;
+  // Shown in the "recent analyses" list. Absent on entries written before they existed.
+  white?: string;
+  black?: string;
+  result?: string;
+  plies?: number;
 }
 
 export type SaveResult = { ok: true } | { ok: false; reason: 'quota' };
@@ -197,6 +202,10 @@ export function saveAnalysisRecord(record: AnalysisRecord): SaveResult {
     depth: record.depth,
     engineId: record.engineId,
     analyzedAt: record.analyzedAt,
+    white: record.metadata.white,
+    black: record.metadata.black,
+    result: record.metadata.result,
+    plies: record.moves.length,
   };
 
   let evicted = 0;

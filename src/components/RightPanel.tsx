@@ -1,31 +1,22 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { usePrefs } from '../context/PrefsContext';
 import { MoveList } from './MoveList';
 import { GameSummary } from './GameSummary';
-import { BenchmarkPanel } from './BenchmarkPanel';
 import { AccountPanel } from './AccountPanel';
 import { PhaseBreakdown } from './PhaseBreakdown';
-import { AVAILABLE_ENGINES } from '../lib/engines';
-import { effectiveHashMb, logicalCores, workerOptions } from '../lib/engineConfig';
-import { splitPgnGames } from '../lib/pgn';
-import { EXAMPLE_PGN } from '../lib/examples';
-import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
+import { SettingsPane } from './SettingsPane';
 
-const MAX_PGN_FILE_BYTES = 5_000_000;
-
-type Tab = 'giris' | 'hesap' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
+type Tab = 'hamleler' | 'ozet' | 'hesap' | 'ayarlar';
 
 export function RightPanel() {
-  const { state, loadGame, startAnalysis, stopAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
-  const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
-  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId, analysisError, storageWarning, engineStage } = state;
+  const { state, loadGame, startAnalysis, stopAnalysis, navigate, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
+  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, gameId, analysisError, storageWarning, engineStage } = state;
 
-  const [pgnText, setPgnText] = useState('');
-  const [pgnError, setPgnError] = useState<string | null>(null);
-  const [pgnNote, setPgnNote] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<Tab>('giris');
+  // With no game the useful thing next to the "new analysis" window is the account list;
+  // as soon as a game is loaded the move list takes over.
+  const [tab, setTab] = useState<Tab>('hesap');
+  useEffect(() => { setTab(gameId ? 'hamleler' : 'hesap'); }, [gameId]);
+
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [benchmarkKey, setBenchmarkKey] = useState(0);
@@ -34,36 +25,6 @@ export function RightPanel() {
   const isDone = status === 'done';
   const isAnalyzing = status === 'analyzing';
   const hasGame = status === 'ready' || status === 'analyzing' || status === 'done';
-
-  const handleLoad = () => {
-    const v = pgnText.trim();
-    if (!v) { setPgnError('Lütfen bir PGN veya FEN yapıştırın.'); return; }
-    const err = loadGame(v);
-    setPgnError(err);
-    if (!err) setTab('hamleler');
-  };
-
-  // A .pgn file can hold many games; the first one is loaded.
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (file.size > MAX_PGN_FILE_BYTES) {
-      setPgnError('Dosya çok büyük (en fazla 5 MB).');
-      return;
-    }
-    try {
-      const games = splitPgnGames(await file.text());
-      setPgnText(games[0] ?? '');
-      setPgnError(null);
-      setPgnNote(games.length > 1 ? `Dosyada ${games.length} oyun var; ilki yüklendi.` : null);
-    } catch {
-      setPgnError('Dosya okunamadı.');
-    }
-  };
-
-  const handleStartAnalysis = () => {
-    startAnalysis();
-    if (totalMoves > 0) setTab('hamleler');
-  };
 
   const handleSave = () => {
     const run = saveCurrentAnalysis();
@@ -75,140 +36,63 @@ export function RightPanel() {
   };
 
   const tabs: { id: Tab; label: string; disabled?: boolean }[] = [
-    { id: 'giris',     label: 'Giriş' },
-    { id: 'hesap',     label: 'Hesap' },
-    { id: 'hamleler',  label: 'Hamleler', disabled: !hasGame },
-    { id: 'ayarlar',   label: 'Ayarlar' },
-    { id: 'ozet',      label: 'Özet', disabled: !isDone || !summary },
-    { id: 'benchmark', label: 'Benchmark' },
+    { id: 'hamleler', label: 'Hamleler', disabled: !hasGame },
+    { id: 'ozet',     label: 'Özet',     disabled: !isDone || !summary },
+    { id: 'hesap',    label: 'Hesap' },
+    { id: 'ayarlar',  label: 'Ayarlar' },
   ];
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* ── Tab bar ──────────────────────────────────────────────────── */}
-      <div className="flex border-b border-base shrink-0 bg-surface">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => !t.disabled && setTab(t.id)}
-            disabled={t.disabled}
-            className={[
-              'flex-1 py-2.5 text-xs font-semibold transition-colors',
-              t.disabled
-                ? 'text-faint cursor-not-allowed'
-                : tab === t.id
-                ? 'text-accent border-b-2 border-accent -mb-px'
-                : 'text-muted hover-surface',
-            ].join(' ')}
-            style={tab === t.id ? { borderBottomColor: 'var(--accent)' } : {}}
-          >
-            {t.label}
-            {t.id === 'hamleler' && isAnalyzing && (
-              <span className="ml-1 text-accent text-[9px]">
-                {analyzedCount}/{totalMoves}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* ── Tabs ─────────────────────────────────────────────────────── */}
+      <div role="tablist" aria-label="Analiz bölümleri" className="flex gap-1 px-2 pt-2 shrink-0 bg-surface border-b border-strong">
+        {tabs.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => !t.disabled && setTab(t.id)}
+              disabled={t.disabled}
+              className={[
+                'px-3.5 py-1.5 text-[13px] rounded-t border border-b-0 transition-colors',
+                active ? 'bg-base text-base font-bold border-strong -mb-px pb-2' : 'border-base text-muted hover-surface',
+                t.disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer',
+              ].join(' ')}
+            >
+              {t.label}
+              {t.id === 'hamleler' && isAnalyzing && (
+                <span className="ml-1.5 text-accent text-[11px] font-normal">{analyzedCount}/{totalMoves}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Tab content ──────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
 
-        {/* ── Giriş ────────────────────────────────────────────────── */}
-        {tab === 'giris' && (
-          <div className="flex flex-col gap-3 p-3 overflow-y-auto flex-1">
-            <p className="text-xs text-muted">PGN veya FEN yapıştırın (ya da .pgn dosyası bırakın), ardından yükleyin.</p>
-
-            <textarea
-              value={pgnText}
-              onChange={(e) => { setPgnText(e.target.value); setPgnError(null); setPgnNote(null); }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
-              rows={10}
-              placeholder="1. e4 e5 2. Nf3…  veya  FEN dizesi"
-              className="w-full bg-surface-2 border border-base rounded px-3 py-2 text-xs text-base font-mono resize-y transition-colors"
-              spellCheck={false}
-            />
-
-            {pgnError && <p role="alert" className="text-xs text-danger">{pgnError}</p>}
-            {pgnNote && !pgnError && <p className="text-xs text-muted">{pgnNote}</p>}
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleLoad}
-                className="flex-1 py-2 rounded text-xs font-semibold text-white transition-colors"
-                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
-              >
-                Yükle
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-2 text-xs text-muted border border-base rounded hover-surface transition-colors"
-              >
-                Dosya…
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pgn,.txt,text/plain"
-                className="hidden"
-                onChange={(e) => {
-                  handleFile(e.target.files?.[0]);
-                  e.target.value = ''; // allow picking the same file again
-                }}
-              />
-              <button
-                onClick={() => { setPgnText(EXAMPLE_PGN); setPgnError(null); setPgnNote(null); }}
-                className="px-3 py-2 text-xs text-muted border border-base rounded hover-surface transition-colors"
-              >
-                Örnek
-              </button>
-            </div>
-
-            {hasGame && metadata && (
-              <div className="p-2.5 bg-surface-2 border border-base rounded text-xs space-y-1">
-                <div className="font-semibold text-base">
-                  {metadata.white} — {metadata.black}
-                </div>
-                <div className="text-muted">{metadata.event} · {metadata.date}</div>
-                <div className="text-faint">
-                  {totalMoves > 0 ? `${totalMoves} hamle yüklendi` : 'FEN pozisyonu yüklendi'}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Hesap ────────────────────────────────────────────────── */}
         {/* Always mounted (just hidden): switching tabs must not drop the game list
             or the progress of a running account analysis. */}
         <div className={tab === 'hesap' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
           <AccountPanel
-            onGameLoad={(pgn) => {
-              const err = loadGame(pgn);
-              if (!err) setTab('hamleler');
-              return err;
-            }}
-            onRestoreAnalysis={(record) => {
-              restoreAnalysis(record);
-              setTab('hamleler');
-            }}
+            onGameLoad={(pgn) => loadGame(pgn)}
+            onRestoreAnalysis={(record) => restoreAnalysis(record)}
             onBusyChange={setAccountBusy}
           />
         </div>
 
-        {/* ── Hamleler ─────────────────────────────────────────────── */}
         {tab === 'hamleler' && hasGame && totalMoves === 0 && (
-          <div className="flex items-center justify-center flex-1 text-faint text-xs text-center px-6 leading-relaxed">
+          <div className="flex items-center justify-center flex-1 text-faint text-sm text-center px-6 leading-relaxed">
             Bu bir FEN pozisyonu, hamle listesi yok.
             <br />
-            «Pozisyonu Analiz Et» ile motoru çalıştırın; sonuç tahtanın altında görünür.
+            «Pozisyonu analiz et» ile motoru çalıştırın; sonuç tahtanın altında görünür.
           </div>
         )}
 
         {tab === 'hamleler' && hasGame && totalMoves > 0 && (
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <MoveList
               moves={moves}
               sanMoves={sanMoves}
@@ -220,316 +104,6 @@ export function RightPanel() {
           </div>
         )}
 
-        {tab === 'hamleler' && !hasGame && (
-          <div className="flex items-center justify-center flex-1 text-faint text-xs">
-            Önce bir oyun yükleyin.
-          </div>
-        )}
-
-        {/* ── Ayarlar ──────────────────────────────────────────────── */}
-        {tab === 'ayarlar' && (
-          <div className="p-3 flex flex-col gap-5 overflow-y-auto flex-1">
-
-            {/* Site Teması */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Site Teması
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {SITE_THEMES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTheme(t.id)}
-                    className={[
-                      'py-2 px-3 rounded text-xs text-left border transition-colors',
-                      prefs.theme === t.id
-                        ? 'border-accent bg-accent-dim text-accent'
-                        : 'border-base text-muted hover-surface',
-                    ].join(' ')}
-                    style={prefs.theme === t.id ? { borderColor: 'var(--accent)' } : {}}
-                  >
-                    <div className="font-semibold">{t.name}</div>
-                    <div className="text-[10px] text-faint">{t.hint}</div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Tahta Rengi */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Tahta Rengi
-              </label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {BOARD_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setBoardColor(c.id)}
-                    title={c.name}
-                    className={[
-                      'flex flex-col items-center gap-1 p-1.5 rounded border transition-colors',
-                      prefs.boardColorId === c.id
-                        ? 'border-accent'
-                        : 'border-base hover-surface',
-                    ].join(' ')}
-                    style={prefs.boardColorId === c.id ? { borderColor: 'var(--accent)' } : {}}
-                  >
-                    {/* Mini board swatch: 2x2 squares */}
-                    <div className="grid grid-cols-2 rounded overflow-hidden" style={{ width: 28, height: 28 }}>
-                      <div style={{ backgroundColor: c.light }} />
-                      <div style={{ backgroundColor: c.dark }} />
-                      <div style={{ backgroundColor: c.dark }} />
-                      <div style={{ backgroundColor: c.light }} />
-                    </div>
-                    <span className="text-[9px] text-muted leading-tight text-center">{c.name}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Taş Seti */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Taş Seti
-              </label>
-              <div className="flex flex-col gap-1">
-                {PIECE_SETS.map((ps) => (
-                  <button
-                    key={ps.id}
-                    onClick={() => setPieceSet(ps.id)}
-                    className={[
-                      'flex items-center gap-3 px-3 py-2 rounded border text-left transition-colors',
-                      prefs.pieceSetId === ps.id
-                        ? 'border-accent bg-accent-dim'
-                        : 'border-base hover-surface',
-                    ].join(' ')}
-                    style={prefs.pieceSetId === ps.id ? { borderColor: 'var(--accent)' } : {}}
-                  >
-                    {ps.path ? (
-                      <img
-                        src={`${import.meta.env.BASE_URL}${ps.path}/wK.svg`}
-                        className="w-7 h-7 shrink-0 object-contain"
-                        alt={ps.name}
-                        draggable={false}
-                      />
-                    ) : (
-                      <span className="text-xl leading-none w-7 h-7 flex items-center justify-center shrink-0">♔</span>
-                    )}
-                    <div className="min-w-0">
-                      <div className={`text-xs font-semibold ${prefs.pieceSetId === ps.id ? 'text-accent' : 'text-base'}`}>
-                        {ps.name}
-                      </div>
-                      <div className="text-[10px] text-faint">{ps.description}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Tahta Boyutu */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Tahta Boyutu — {Math.round(520 * prefs.boardSize / 100)}px
-              </label>
-              <input
-                type="range"
-                min={70}
-                max={130}
-                step={5}
-                value={prefs.boardSize}
-                onChange={(e) => setBoardSize(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="flex justify-between text-[10px] text-faint mt-1">
-                <span>Küçük</span>
-                <span className="text-muted">{prefs.boardSize}%</span>
-                <span>Büyük</span>
-              </div>
-            </section>
-
-            {/* Font Seçimi */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Yazı Tipi
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {FONT_OPTIONS.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setFont(f.id)}
-                    className={[
-                      'py-2 px-3 rounded border text-left transition-colors',
-                      prefs.fontId === f.id
-                        ? 'border-accent bg-accent-dim'
-                        : 'border-base hover-surface',
-                    ].join(' ')}
-                    style={prefs.fontId === f.id ? { borderColor: 'var(--accent)' } : {}}
-                  >
-                    <div
-                      className={`text-xs font-semibold ${prefs.fontId === f.id ? 'text-accent' : 'text-base'}`}
-                      style={{ fontFamily: f.stack }}
-                    >
-                      {f.name}
-                    </div>
-                    <div className="text-[10px] text-faint" style={{ fontFamily: f.stack }}>
-                      Abc 123
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Ayırıcı */}
-            <div className="border-t border-base" />
-
-            {/* Motor */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Motor (Engine)
-              </label>
-              <div className="flex flex-col gap-1.5">
-                {AVAILABLE_ENGINES.map((eng) => (
-                  <button
-                    key={eng.id}
-                    onClick={() => setEngine(eng.id)}
-                    disabled={isAnalyzing}
-                    className={[
-                      'w-full text-left px-3 py-2 rounded border text-xs transition-colors',
-                      engineId === eng.id
-                        ? 'border-accent bg-accent-dim'
-                        : 'border-base hover-surface',
-                      isAnalyzing ? 'opacity-40 cursor-not-allowed' : '',
-                    ].join(' ')}
-                    style={engineId === eng.id ? { borderColor: 'var(--accent)' } : {}}
-                  >
-                    <div className={`font-semibold ${engineId === eng.id ? 'text-accent' : 'text-base'}`}>{eng.name}</div>
-                    <div className="text-[10px] text-faint mt-0.5">{eng.description}</div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Derinlik */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Analiz Derinliği — {depth}
-              </label>
-              <input
-                type="range"
-                min={8}
-                max={24}
-                step={1}
-                value={depth}
-                disabled={isAnalyzing}
-                onChange={(e) => setDepth(Number(e.target.value))}
-                className="w-full disabled:opacity-40"
-              />
-              <div className="flex justify-between text-[10px] text-faint mt-1">
-                <span>8 (hızlı)</span>
-                <span>24 (derin)</span>
-              </div>
-            </section>
-
-            {/* Performans */}
-            <section>
-              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-                Performans
-              </label>
-
-              <div className="space-y-3">
-                {/* Worker sayısı */}
-                <div>
-                  <div className="text-[10px] text-muted mb-1.5">
-                    Paralel İşçi Sayısı
-                    <span className="text-faint ml-1">— bu cihazda {logicalCores()} mantıksal çekirdek var</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1">
-                    {workerOptions(workerCount).map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setWorkerCount(n)}
-                        disabled={isAnalyzing}
-                        className={[
-                          'py-1.5 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                          workerCount === n
-                            ? 'border-accent bg-accent-dim text-accent'
-                            : 'border-base text-muted hover-surface',
-                        ].join(' ')}
-                        style={workerCount === n ? { borderColor: 'var(--accent)' } : {}}
-                      >
-                        ×{n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Hash belleği */}
-                <div>
-                  <div className="text-[10px] text-muted mb-1.5">
-                    Hash Belleği
-                    <span className="text-faint ml-1">— transposition table boyutu</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1">
-                    {([32, 64, 128, 256, 512, 1024] as const).map((mb) => (
-                      <button
-                        key={mb}
-                        onClick={() => setHashMb(mb)}
-                        disabled={isAnalyzing}
-                        className={[
-                          'py-1.5 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                          hashMb === mb
-                            ? 'border-accent bg-accent-dim text-accent'
-                            : 'border-base text-muted hover-surface',
-                        ].join(' ')}
-                        style={hashMb === mb ? { borderColor: 'var(--accent)' } : {}}
-                      >
-                        {mb >= 1024 ? `${mb / 1024}GB` : `${mb}MB`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Efektif hash bilgisi */}
-                {(() => {
-                  const effective = effectiveHashMb(workerCount, hashMb);
-                  return effective < hashMb ? (
-                    <p className="text-[10px] text-faint">
-                      Toplam hash bütçesi nedeniyle işçi başına etkin hash:{' '}
-                      <span className="text-muted font-semibold">{effective}MB</span>
-                    </p>
-                  ) : null;
-                })()}
-
-                {/* Uyarı */}
-                {(workerCount >= logicalCores() || workerCount >= 8 || hashMb >= 512) && (
-                  <div className="flex items-start gap-2 px-2.5 py-2 rounded border text-[10px]"
-                    style={{ borderColor: 'var(--warning, #f59e0b)', backgroundColor: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)' }}
-                  >
-                    <span style={{ color: 'var(--warning, #f59e0b)' }} className="shrink-0 mt-px">⚠</span>
-                    <span className="text-muted">
-                      Bu seçenek sisteminizi zorlayabilir! Yavaş cihazlarda sekme donabilir veya tarayıcı bellek hatası verebilir.
-                    </span>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <p className="text-[10px] text-faint leading-relaxed border-t border-base pt-3">
-              Motor: Stockfish (GPL-3.0). Taş setleri ve yazı tipleri üçüncü taraf lisanslarıyla gelir —{' '}
-              <a
-                href={`${import.meta.env.BASE_URL}THIRD_PARTY_NOTICES.txt`}
-                target="_blank"
-                rel="noreferrer"
-                className="underline hover-text-accent"
-              >
-                lisanslar
-              </a>
-              .
-            </p>
-          </div>
-        )}
-
-        {/* ── Özet ──────────────────────────────────────────────────── */}
         {tab === 'ozet' && isDone && summary && metadata && (
           <div className="p-3 overflow-y-auto flex-1">
             <GameSummary summary={summary} metadata={metadata} />
@@ -537,55 +111,43 @@ export function RightPanel() {
           </div>
         )}
 
-        {tab === 'ozet' && !(isDone && summary) && (
-          <div className="flex items-center justify-center flex-1 text-faint text-xs">
-            Analiz tamamlandığında burada özet görünür.
-          </div>
-        )}
-
-        {/* ── Benchmark ────────────────────────────────────────────── */}
-        {tab === 'benchmark' && (
-          <BenchmarkPanel
-            key={benchmarkKey}
-            gameId={gameId}
-            onRunsChange={() => setBenchmarkKey((k) => k + 1)}
-          />
+        {tab === 'ayarlar' && (
+          <SettingsPane benchmarkKey={benchmarkKey} onBenchmarkChange={() => setBenchmarkKey((k) => k + 1)} />
         )}
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
       {(status === 'ready' || status === 'done') && (
-        <div className="shrink-0 border-t border-base p-3 space-y-2">
+        <div className="shrink-0 border-t border-strong bg-surface p-3 space-y-2">
           {analysisError && (
             <div
               role="alert"
-              className="px-2.5 py-2 rounded border text-[11px] leading-relaxed"
+              className="px-2.5 py-2 rounded border text-xs leading-relaxed"
               style={{
                 borderColor: 'var(--danger)',
                 color: 'var(--danger)',
                 backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
               }}
             >
-              <span className="font-semibold">Analiz başarısız: </span>{analysisError}
+              <span className="font-bold">Analiz başarısız: </span>{analysisError}
             </div>
           )}
           <button
-            onClick={handleStartAnalysis}
+            onClick={() => startAnalysis()}
             disabled={accountBusy}
             title={accountBusy ? 'Hesap analizi sürerken başlatılamaz.' : undefined}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
+            className="btn-primary w-full py-2 text-sm"
           >
             {analysisError
-              ? 'Tekrar Dene'
+              ? 'Tekrar dene'
               : status === 'done'
-                ? 'Yeniden Analiz Et'
+                ? 'Yeniden analiz et'
                 : totalMoves === 0
-                  ? 'Pozisyonu Analiz Et'
-                  : 'Analizi Başlat'}
+                  ? 'Pozisyonu analiz et'
+                  : 'Analizi başlat'}
           </button>
           {accountBusy && (
-            <p className="text-[10px] text-faint text-center">
+            <p className="text-xs text-faint text-center">
               Hesap analizi sürüyor; bitince veya iptal edince başlatabilirsiniz.
             </p>
           )}
@@ -593,48 +155,45 @@ export function RightPanel() {
             <button
               onClick={handleSave}
               disabled={savedFeedback}
-              className="w-full py-2 rounded-lg text-xs font-semibold border border-base hover-surface transition-colors text-muted disabled:text-accent disabled:border-accent"
+              className="btn-raised w-full py-1.5 text-[13px]"
             >
-              {savedFeedback ? '✓ Kaydedildi!' : 'Benchmark\'e Kaydet'}
+              {savedFeedback ? 'Kaydedildi' : 'Benchmark\'a kaydet'}
             </button>
           )}
           {saveFailed && (
-            <p role="alert" className="text-[10px] text-danger text-center">
-              Kaydedilemedi: tarayıcı depolaması dolu. Eski benchmark kayıtlarını silin.
+            <p role="alert" className="text-xs text-danger text-center">
+              Kaydedilemedi: tarayıcı depolaması dolu. Ayarlar'daki eski benchmark kayıtlarını silin.
             </p>
           )}
           {storageWarning && (
-            <p role="alert" className="text-[10px] text-danger text-center">{storageWarning}</p>
+            <p role="alert" className="text-xs text-danger text-center">{storageWarning}</p>
           )}
         </div>
       )}
 
       {isAnalyzing && (
-        <div className="shrink-0 border-t border-base p-3 space-y-1.5">
+        <div className="shrink-0 border-t border-strong bg-surface p-3 space-y-2">
           {engineStage === 'loading-engine' ? (
-            <div className="text-xs text-accent text-center animate-pulse">
+            <div className="text-sm text-accent text-center animate-pulse">
               Motor yükleniyor… <span className="text-faint">(ilk açılışta büyük dosya indirilir)</span>
             </div>
           ) : (
-            <div className="text-xs text-accent text-center animate-pulse">
+            <div className="text-sm text-accent text-center animate-pulse">
               {totalMoves > 0
                 ? `Analiz ediliyor… ${analyzedCount}/${totalMoves} hamle`
                 : 'Pozisyon analiz ediliyor…'}
             </div>
           )}
-          <div className="h-1 bg-surface-2 rounded overflow-hidden">
+          <div className="h-2 bg-surface-2 border border-base rounded-sm overflow-hidden">
             <div
               className="h-full transition-all"
               style={{
                 width: `${totalMoves > 0 ? (analyzedCount / totalMoves) * 100 : 0}%`,
-                backgroundColor: 'var(--accent)',
+                background: 'repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px)',
               }}
             />
           </div>
-          <button
-            onClick={stopAnalysis}
-            className="w-full py-1.5 rounded-lg text-xs font-semibold border border-base hover-surface transition-colors text-muted"
-          >
+          <button onClick={stopAnalysis} className="btn-raised w-full py-1.5 text-[13px]">
             Durdur
           </button>
         </div>

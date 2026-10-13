@@ -158,7 +158,7 @@ export function BenchmarkPanel({ gameId, onRunsChange }: Props) {
 
   if (!gameId) {
     return (
-      <div className="flex items-center justify-center flex-1 text-faint text-xs p-4 text-center">
+      <div className="flex items-center justify-center text-faint text-xs p-4 text-center">
         Benchmark verisi görmek için önce bir oyun yükleyin.
       </div>
     );
@@ -167,7 +167,7 @@ export function BenchmarkPanel({ gameId, onRunsChange }: Props) {
   const grouped = groupRunsByConfig(runs);
 
   return (
-    <div className="flex flex-col gap-3 p-3 overflow-y-auto flex-1">
+    <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">

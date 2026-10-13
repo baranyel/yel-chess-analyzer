@@ -2,6 +2,7 @@ import { useAnalysis } from './context/AnalysisContext';
 import { usePrefs } from './context/PrefsContext';
 import { BoardWindow } from './components/BoardWindow';
 import { Desktop } from './components/Desktop';
+import { HomeScene } from './components/HomeScene';
 import { RightPanel } from './components/RightPanel';
 import { Window } from './components/Window';
 
@@ -59,15 +60,20 @@ function TopBar() {
 }
 
 export default function App() {
+  const { state } = useAnalysis();
+  const hasGame = state.status !== 'idle';
+
   return (
     <Desktop>
       <TopBar />
       <main className="flex-1 min-h-0 overflow-y-auto xl:overflow-hidden p-3 xl:p-5">
         <div className="flex flex-col xl:flex-row gap-4 xl:justify-center xl:h-full">
-          <BoardWindow className="xl:shrink-0 xl:max-h-full" />
+          {hasGame
+            ? <BoardWindow className="xl:shrink-0 xl:max-h-full" />
+            : <HomeScene className="xl:w-[44rem] xl:h-[min(100%,38rem)] xl:self-center xl:shrink-0" />}
           <Window
             title="Analiz"
-            className="shrink-0 xl:w-[26rem] max-xl:h-[78dvh] max-xl:min-h-[30rem]"
+            className={`shrink-0 xl:w-[26rem] max-xl:h-[78dvh] max-xl:min-h-[30rem] ${hasGame ? "" : "xl:h-[min(100%,38rem)] xl:self-center"}`}
           >
             <RightPanel />
           </Window>

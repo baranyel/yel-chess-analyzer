@@ -206,6 +206,8 @@ interface AnalysisContextValue {
   state: AnalysisState;
   /** Returns an error message when the input could not be parsed (the current game is left untouched), else null. */
   loadGame: (input: string) => string | null;
+  /** Loads the input and starts analysing it right away. Same return value as loadGame. */
+  loadAndAnalyze: (input: string) => string | null;
   startAnalysis: () => Promise<void>;
   stopAnalysis: () => void;
   navigate: (index: number) => void;
@@ -219,6 +221,12 @@ interface AnalysisContextValue {
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null);
+
+interface GameToAnalyze {
+  fens: string[];
+  sanMoves: string[];
+  metadata: PgnMetadata | null;
+}
 
 function looksLikeFen(text: string): boolean {
   return /^[rnbqkpRNBQKP1-8/]+ [wb]/.test(text) && !text.includes('\n');
@@ -243,13 +251,14 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => cancelRun, [cancelRun]);
 
   // ── loadGame ─────────────────────────────────────────────────────────
-  const loadGame = useCallback((input: string): string | null => {
+  // Parses and installs a game. Returns the parse error, or the parsed game on success.
+  const installGame = useCallback((input: string): { error: string } | { game: GameToAnalyze } => {
     const trimmed = input.trim();
     let parsed: ReturnType<typeof parsePgn>;
     try {
       parsed = looksLikeFen(trimmed) ? parseFen(trimmed) : parsePgn(trimmed);
     } catch (err) {
-      return (err as Error).message;
+      return { error: (err as Error).message };
     }
     // Only now is it safe to drop the running analysis (bad input must not kill it).
     cancelRun();
@@ -261,12 +270,20 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       sanMoves: parsed.moves,
       gameId: computeGameId(trimmed),
     });
-    return null;
+    return { game: { fens: parsed.fens, sanMoves: parsed.moves, metadata: parsed.metadata } };
   }, [cancelRun]);
 
-  // ── startAnalysis ────────────────────────────────────────────────────
-  const startAnalysis = useCallback(async () => {
-    const { fens, sanMoves, depth, engineId, workerCount, hashMb, metadata } = stateRef.current;
+  const loadGame = useCallback((input: string): string | null => {
+    const r = installGame(input);
+    return 'error' in r ? r.error : null;
+  }, [installGame]);
+
+  // ── analysis ─────────────────────────────────────────────────────────
+  // Takes the game explicitly: right after loadGame the reducer state has not been
+  // committed yet, so "load and analyse" cannot read it from stateRef.
+  const runAnalysis = useCallback(async (game: GameToAnalyze) => {
+    const { depth, engineId, workerCount, hashMb } = stateRef.current;
+    const { fens, sanMoves, metadata } = game;
     if (!fens.length) return;
 
     cancelRun();
@@ -326,6 +343,18 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cancelRun]);
 
+  const startAnalysis = useCallback(async () => {
+    const { fens, sanMoves, metadata } = stateRef.current;
+    await runAnalysis({ fens, sanMoves, metadata });
+  }, [runAnalysis]);
+
+  const loadAndAnalyze = useCallback((input: string): string | null => {
+    const r = installGame(input);
+    if ('error' in r) return r.error;
+    void runAnalysis(r.game);
+    return null;
+  }, [installGame, runAnalysis]);
+
   const stopAnalysis = useCallback(() => {
     cancelRun();
     dispatch({ type: 'ANALYSIS_STOPPED' });
@@ -366,7 +395,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AnalysisContext.Provider value={{
-      state, loadGame, startAnalysis, stopAnalysis, navigate, reset,
+      state, loadGame, loadAndAnalyze, startAnalysis, stopAnalysis, navigate, reset,
       setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis,
     }}>
       {children}
