@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { MoveList } from './MoveList';
+import { EvalGraph } from './EvalGraph';
 import { GameSummary } from './GameSummary';
 import { AccountPanel } from './AccountPanel';
 import { PhaseBreakdown } from './PhaseBreakdown';
@@ -92,7 +93,9 @@ export function RightPanel() {
         )}
 
         {tab === 'hamleler' && hasGame && totalMoves > 0 && (
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <EvalGraph moves={moves} currentIndex={currentIndex} onSelect={navigate} />
+            <div className="flex-1 min-h-0">
             <MoveList
               moves={moves}
               sanMoves={sanMoves}
@@ -101,6 +104,7 @@ export function RightPanel() {
               analyzedCount={analyzedCount}
               onSelect={navigate}
             />
+            </div>
           </div>
         )}
 

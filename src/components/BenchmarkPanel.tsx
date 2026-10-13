@@ -91,7 +91,7 @@ function ConfigGroup({
           {report ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Tutarlılık Skoru</span>
+                <span className="section-title text-base">Tutarlılık skoru</span>
               </div>
               <ScoreBar score={report.consistencyScore} />
               <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-[10px] mt-1.5">
@@ -170,8 +170,8 @@ export function BenchmarkPanel({ gameId, onRunsChange }: Props) {
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-          Analiz Geçmişi
+        <span className="section-title text-base">
+          Benchmark kayıtları
         </span>
         {runs.length > 0 && (
           <button

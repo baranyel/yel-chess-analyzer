@@ -96,8 +96,8 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
 
       {/* Phase breakdown */}
       <div className="border-t border-base pt-3">
-        <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-          Faz Bazlı Rating
+        <p className="section-title text-base mb-2">
+          Fazlara göre rating
         </p>
         <div className="divide-y divide-base border border-base rounded overflow-hidden">
           {PHASE_LABELS.map(({ key, label }) => (
@@ -110,8 +110,8 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
 
       {/* Classification summary */}
       <div className="border-t border-base pt-3">
-        <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
-          Hamle Dağılımı
+        <p className="section-title text-base mb-2">
+          Hamle dağılımı
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
           {[
@@ -135,7 +135,7 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
         onClick={onClose}
         className="w-full py-2 rounded border border-base text-xs text-muted hover-surface transition-colors"
       >
-        Oyun Listesine Dön
+        Oyun listesine dön
       </button>
     </div>
   );

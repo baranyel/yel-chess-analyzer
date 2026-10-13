@@ -48,7 +48,7 @@ const STAT_ROWS: Array<{ key: keyof typeof CLASSIFICATION_STYLES }> = [
 export function GameSummary({ summary, metadata }: Props) {
   return (
     <div className="space-y-4 text-sm">
-      <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">Maç Özeti</h3>
+      <h3 className="section-title text-base">Maç özeti</h3>
 
       {/* Players */}
       <div className="grid grid-cols-3 gap-2 text-center">

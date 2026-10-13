@@ -48,7 +48,7 @@ export function PhaseBreakdown({ moves, metadata }: Props) {
 
   return (
     <div className="space-y-2 border-t border-base pt-4 mt-2">
-      <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">Faz Analizi</h3>
+      <h3 className="section-title text-base">Faz analizi</h3>
 
       {PHASE_LABELS.map(({ key, label }) => {
         const phase = breakdown[key];

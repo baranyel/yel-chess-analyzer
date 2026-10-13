@@ -243,7 +243,7 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
       {view === 'analyzing' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
           <div className="text-xs text-muted text-center animate-pulse">
-            Hesap Analizi Yapılıyor…
+            Hesap analizi yapılıyor…
           </div>
           <div className="w-full space-y-1.5">
             <div className="h-1.5 bg-surface-2 rounded overflow-hidden">
@@ -333,7 +333,7 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
                 className="w-full mb-2 py-2 rounded border text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}
               >
-                Tüm Maçları Analiz Et — Tahmini Rating Çıkar
+                Tüm maçları analiz et ve rating tahmin et
               </button>
               {mainBusy && (
                 <p className="text-[10px] text-faint mb-2 text-center">
