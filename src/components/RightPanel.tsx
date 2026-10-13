@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { usePrefs } from '../context/PrefsContext';
 import { MoveList } from './MoveList';
@@ -8,6 +8,9 @@ import { AccountPanel } from './AccountPanel';
 import { PhaseBreakdown } from './PhaseBreakdown';
 import { AVAILABLE_ENGINES } from '../lib/engines';
 import { effectiveHashMb, logicalCores, workerOptions } from '../lib/engineConfig';
+import { splitPgnGames } from '../lib/pgn';
+
+const MAX_PGN_FILE_BYTES = 5_000_000;
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
 const EXAMPLE_PGN = `[Event "F/S Return Match"]
@@ -35,6 +38,8 @@ export function RightPanel() {
 
   const [pgnText, setPgnText] = useState('');
   const [pgnError, setPgnError] = useState<string | null>(null);
+  const [pgnNote, setPgnNote] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>('giris');
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -51,6 +56,23 @@ export function RightPanel() {
     const err = loadGame(v);
     setPgnError(err);
     if (!err) setTab('hamleler');
+  };
+
+  // A .pgn file can hold many games; the first one is loaded.
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_PGN_FILE_BYTES) {
+      setPgnError('Dosya çok büyük (en fazla 5 MB).');
+      return;
+    }
+    try {
+      const games = splitPgnGames(await file.text());
+      setPgnText(games[0] ?? '');
+      setPgnError(null);
+      setPgnNote(games.length > 1 ? `Dosyada ${games.length} oyun var; ilki yüklendi.` : null);
+    } catch {
+      setPgnError('Dosya okunamadı.');
+    }
   };
 
   const handleStartAnalysis = () => {
@@ -111,18 +133,21 @@ export function RightPanel() {
         {/* ── Giriş ────────────────────────────────────────────────── */}
         {tab === 'giris' && (
           <div className="flex flex-col gap-3 p-3 overflow-y-auto flex-1">
-            <p className="text-xs text-muted">PGN veya FEN yapıştırın, ardından yükleyin.</p>
+            <p className="text-xs text-muted">PGN veya FEN yapıştırın (ya da .pgn dosyası bırakın), ardından yükleyin.</p>
 
             <textarea
               value={pgnText}
-              onChange={(e) => { setPgnText(e.target.value); setPgnError(null); }}
+              onChange={(e) => { setPgnText(e.target.value); setPgnError(null); setPgnNote(null); }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
               rows={10}
               placeholder="1. e4 e5 2. Nf3…  veya  FEN dizesi"
               className="w-full bg-surface-2 border border-base rounded px-3 py-2 text-xs text-base font-mono resize-y transition-colors"
               spellCheck={false}
             />
 
-            {pgnError && <p className="text-xs text-danger">{pgnError}</p>}
+            {pgnError && <p role="alert" className="text-xs text-danger">{pgnError}</p>}
+            {pgnNote && !pgnError && <p className="text-xs text-muted">{pgnNote}</p>}
 
             <div className="flex gap-2">
               <button
@@ -133,7 +158,23 @@ export function RightPanel() {
                 Yükle
               </button>
               <button
-                onClick={() => { setPgnText(EXAMPLE_PGN); setPgnError(null); }}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-2 text-xs text-muted border border-base rounded hover-surface transition-colors"
+              >
+                Dosya…
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pgn,.txt,text/plain"
+                className="hidden"
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0]);
+                  e.target.value = ''; // allow picking the same file again
+                }}
+              />
+              <button
+                onClick={() => { setPgnText(EXAMPLE_PGN); setPgnError(null); setPgnNote(null); }}
                 className="px-3 py-2 text-xs text-muted border border-base rounded hover-surface transition-colors"
               >
                 Örnek

@@ -1,12 +1,7 @@
 import type { AnalyzedMove } from '../lib/types';
 import { CLASSIFICATION_STYLES } from '../lib/classification';
-
-function fmtEval(e: { type: 'cp' | 'mate'; value: number } | null): string {
-  if (!e) return '?';
-  if (e.type === 'mate') return e.value > 0 ? `M${e.value}` : `M${e.value}`;
-  const p = e.value / 100;
-  return (p >= 0 ? '+' : '') + p.toFixed(2);
-}
+import { uciToSan } from '../lib/chessUtils';
+import { formatEval } from '../lib/format';
 
 function cpLossColor(loss: number): string {
   if (loss > 100) return 'var(--clr-blunder)';
@@ -43,11 +38,11 @@ export function MoveDetail({ move }: Props) {
       <div className="flex gap-3 flex-wrap">
         <div>
           <div className="text-faint text-[10px]">Önce</div>
-          <div className="font-mono text-base">{fmtEval(move.evalBefore)}</div>
+          <div className="font-mono text-base">{formatEval(move.evalBefore)}</div>
         </div>
         <div>
           <div className="text-faint text-[10px]">Sonra</div>
-          <div className="font-mono text-base">{fmtEval(move.evalAfter)}</div>
+          <div className="font-mono text-base">{formatEval(move.evalAfter)}</div>
         </div>
         <div>
           <div className="text-faint text-[10px]">CP kaybı</div>
@@ -58,7 +53,9 @@ export function MoveDetail({ move }: Props) {
         {move.bestMove && move.bestMove !== move.uci && (
           <div className="ml-auto">
             <div className="text-faint text-[10px]">En iyi</div>
-            <div className="font-mono text-accent">{move.bestMove}</div>
+            <div className="font-mono text-accent" title={move.bestMove}>
+              {uciToSan(move.fenBefore, move.bestMove)}
+            </div>
           </div>
         )}
       </div>

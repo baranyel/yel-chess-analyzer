@@ -61,6 +61,19 @@ export function parsePgn(pgn: string): ParsedGame {
   return { metadata, moves, fens };
 }
 
+/**
+ * A .pgn file may hold many games. Splits on the blank line that precedes each
+ * new `[Event …]` header; text without such a boundary is returned as one game.
+ */
+export function splitPgnGames(text: string): string[] {
+  const games = text
+    .replace(/^﻿/, '')
+    .split(/\r?\n[ \t]*\r?\n(?=\[Event\s)/)
+    .map((g) => g.trim())
+    .filter(Boolean);
+  return games.length > 0 ? games : [text.trim()];
+}
+
 export function parseFen(fen: string): ParsedGame {
   let chess: Chess;
   try {
