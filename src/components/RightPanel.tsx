@@ -7,6 +7,7 @@ import { BenchmarkPanel } from './BenchmarkPanel';
 import { AccountPanel } from './AccountPanel';
 import { PhaseBreakdown } from './PhaseBreakdown';
 import { AVAILABLE_ENGINES } from '../lib/engines';
+import { effectiveHashMb } from '../lib/engineConfig';
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
 const EXAMPLE_PGN = `[Event "F/S Return Match"]
@@ -45,13 +46,9 @@ export function RightPanel() {
   const handleLoad = () => {
     const v = pgnText.trim();
     if (!v) { setPgnError('Lütfen bir PGN veya FEN yapıştırın.'); return; }
-    setPgnError(null);
-    try {
-      loadGame(v);
-      setTab('hamleler');
-    } catch (e) {
-      setPgnError((e as Error).message);
-    }
+    const err = loadGame(v);
+    setPgnError(err);
+    if (!err) setTab('hamleler');
   };
 
   const handleStartAnalysis = () => {
@@ -156,8 +153,9 @@ export function RightPanel() {
         {tab === 'hesap' && (
           <AccountPanel
             onGameLoad={(pgn) => {
-              loadGame(pgn);
-              setTab('hamleler');
+              const err = loadGame(pgn);
+              if (!err) setTab('hamleler');
+              return err;
             }}
             onRestoreAnalysis={(record) => {
               restoreAnalysis(record);
@@ -450,8 +448,8 @@ export function RightPanel() {
                 </div>
 
                 {/* Efektif hash bilgisi */}
-                {workerCount > 1 && (() => {
-                  const effective = Math.max(16, Math.min(hashMb, Math.floor(512 / workerCount)));
+                {(() => {
+                  const effective = effectiveHashMb(workerCount, hashMb);
                   return effective < hashMb ? (
                     <p className="text-[10px] text-faint">
                       Toplam hash bütçesi nedeniyle işçi başına etkin hash:{' '}

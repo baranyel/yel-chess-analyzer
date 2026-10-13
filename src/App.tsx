@@ -94,7 +94,7 @@ export default function App() {
   const { prefs } = usePrefs();
   const { status, fens, moves, currentIndex, metadata } = state;
 
-  const hasGame = status !== 'idle' && status !== 'error';
+  const hasGame = status !== 'idle';
   const currentFen = hasGame && fens.length > 0 ? (fens[currentIndex] ?? START_FEN) : START_FEN;
   const currentMove = currentIndex > 0 ? (moves[currentIndex - 1] ?? null) : null;
   const currentEval = currentMove?.evalAfter ?? (moves[0]?.evalBefore ?? null);
@@ -136,19 +136,9 @@ export default function App() {
           )}
         </div>
 
-        {status === 'error' ? (
-          <button
-            onClick={reset}
-            className="shrink-0 text-xs border rounded px-2 py-1 transition-colors hover-surface"
-            style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
-          >
-            Hata — Sıfırla
-          </button>
-        ) : (
-          <span className="shrink-0 hidden md:block text-[10px] text-faint font-mono select-none">
-            v{__APP_VERSION__}
-          </span>
-        )}
+        <span className="shrink-0 hidden md:block text-[10px] text-faint font-mono select-none">
+          v{__APP_VERSION__}
+        </span>
       </header>
 
       {/* ── Main layout ────────────────────────────────────────────────── */}

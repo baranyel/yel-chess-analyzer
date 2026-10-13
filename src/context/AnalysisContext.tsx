@@ -4,35 +4,32 @@ import React, {
   useReducer,
   useRef,
   useCallback,
+  useEffect,
 } from 'react';
-import { Chess } from 'chess.js';
 import { StockfishService } from '../engine/StockfishService';
+import { EnginePool, analyzeGame } from '../engine/analyzeGame';
+import { isAbortError, type EngineStage } from '../engine/types';
 import { parsePgn, parseFen } from '../lib/pgn';
-import {
-  classifyMove,
-  computeCpLoss,
-  computeWinPctLoss,
-  computeAccuracy,
-  computeAcpl,
-  estimateElo,
-} from '../lib/classification';
 import { AVAILABLE_ENGINES, DEFAULT_ENGINE_ID } from '../lib/engines';
+import { defaultWorkerCount, effectiveHashMb } from '../lib/engineConfig';
+import { buildSummary } from '../lib/summary';
 import { computeGameId, saveRun, type BenchmarkRun } from '../lib/benchmark';
 import { saveAnalysisRecord, type AnalysisRecord } from '../lib/analysisHistory';
-import type { AnalyzedMove, GameSummaryStats, PgnMetadata, EvalResult } from '../lib/types';
+import type { AnalyzedMove, GameSummaryStats, PgnMetadata, PositionAnalysis } from '../lib/types';
 
 const DEFAULT_DEPTH = 18;
-const DEFAULT_WORKER_COUNT = 1;
 const DEFAULT_HASH_MB = 64;
-const MULTI_PV = 3;
 
 // ── Status ────────────────────────────────────────────────────────────────
-export type AnalysisStatus = 'idle' | 'ready' | 'analyzing' | 'done' | 'error';
+export type AnalysisStatus = 'idle' | 'ready' | 'analyzing' | 'done';
 
 // ── State ─────────────────────────────────────────────────────────────────
 interface AnalysisState {
   status: AnalysisStatus;
-  error: string | null;
+  /** Set when the last analysis run failed (engine crash / load failure). The loaded game is kept. */
+  analysisError: string | null;
+  /** While analyzing: are the engines still loading, or already searching? */
+  engineStage: EngineStage | null;
   metadata: PgnMetadata | null;
   moves: AnalyzedMove[];
   sanMoves: string[];
@@ -41,6 +38,8 @@ interface AnalysisState {
   analyzedCount: number;
   totalMoves: number;
   summary: GameSummaryStats | null;
+  /** Engine verdict for the last position (the only position in FEN mode). */
+  positionAnalysis: PositionAnalysis | null;
   depth: number;
   engineId: string;
   workerCount: number;
@@ -50,7 +49,8 @@ interface AnalysisState {
 
 const initialState: AnalysisState = {
   status: 'idle',
-  error: null,
+  analysisError: null,
+  engineStage: null,
   metadata: null,
   moves: [],
   sanMoves: [],
@@ -59,9 +59,10 @@ const initialState: AnalysisState = {
   analyzedCount: 0,
   totalMoves: 0,
   summary: null,
+  positionAnalysis: null,
   depth: DEFAULT_DEPTH,
   engineId: DEFAULT_ENGINE_ID,
-  workerCount: DEFAULT_WORKER_COUNT,
+  workerCount: defaultWorkerCount(),
   hashMb: DEFAULT_HASH_MB,
   gameId: null,
 };
@@ -70,9 +71,11 @@ const initialState: AnalysisState = {
 type Action =
   | { type: 'GAME_LOADED'; metadata: PgnMetadata; fens: string[]; sanMoves: string[]; gameId: string }
   | { type: 'ANALYSIS_STARTED' }
+  | { type: 'ENGINE_STAGE'; stage: EngineStage }
   | { type: 'MOVE_ANALYZED'; move: AnalyzedMove }
-  | { type: 'ANALYSIS_DONE'; summary: GameSummaryStats }
-  | { type: 'ERROR'; message: string }
+  | { type: 'ANALYSIS_DONE'; summary: GameSummaryStats | null; positionAnalysis: PositionAnalysis }
+  | { type: 'ANALYSIS_FAILED'; message: string }
+  | { type: 'ANALYSIS_STOPPED' }
   | { type: 'NAVIGATE'; index: number }
   | { type: 'SET_DEPTH'; depth: number }
   | { type: 'SET_ENGINE'; engineId: string }
@@ -87,7 +90,8 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
       return {
         ...state,
         status: 'ready',
-        error: null,
+        analysisError: null,
+        engineStage: null,
         metadata: action.metadata,
         fens: action.fens,
         sanMoves: action.sanMoves,
@@ -96,11 +100,24 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         analyzedCount: 0,
         totalMoves: action.sanMoves.length,
         summary: null,
+        positionAnalysis: null,
         gameId: action.gameId,
       };
 
     case 'ANALYSIS_STARTED':
-      return { ...state, status: 'analyzing', moves: [], analyzedCount: 0 };
+      return {
+        ...state,
+        status: 'analyzing',
+        analysisError: null,
+        engineStage: 'loading-engine',
+        moves: [],
+        analyzedCount: 0,
+        summary: null,
+        positionAnalysis: null,
+      };
+
+    case 'ENGINE_STAGE':
+      return { ...state, engineStage: action.stage };
 
     case 'MOVE_ANALYZED':
       return {
@@ -110,10 +127,20 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
       };
 
     case 'ANALYSIS_DONE':
-      return { ...state, status: 'done', summary: action.summary };
+      return {
+        ...state,
+        status: 'done',
+        engineStage: null,
+        summary: action.summary,
+        positionAnalysis: action.positionAnalysis,
+      };
 
-    case 'ERROR':
-      return { ...state, status: 'error', error: action.message };
+    case 'ANALYSIS_FAILED':
+      // Keep the loaded game and any moves analysed so far; just surface the error.
+      return { ...state, status: 'ready', engineStage: null, analysisError: action.message };
+
+    case 'ANALYSIS_STOPPED':
+      return { ...state, status: 'ready', engineStage: null };
 
     case 'NAVIGATE':
       return { ...state, currentIndex: action.index };
@@ -135,7 +162,8 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
       return {
         ...state,
         status: 'done',
-        error: null,
+        analysisError: null,
+        engineStage: null,
         metadata: r.metadata,
         fens: r.fens,
         sanMoves: r.sanMoves,
@@ -143,6 +171,7 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
         analyzedCount: r.moves.length,
         totalMoves: r.sanMoves.length,
         summary: r.summary,
+        positionAnalysis: null,
         currentIndex: 0,
         gameId: r.gameId,
       };
@@ -165,8 +194,10 @@ function reducer(state: AnalysisState, action: Action): AnalysisState {
 // ── Context ───────────────────────────────────────────────────────────────
 interface AnalysisContextValue {
   state: AnalysisState;
-  loadGame: (input: string) => void;
+  /** Returns an error message when the input could not be parsed (the current game is left untouched), else null. */
+  loadGame: (input: string) => string | null;
   startAnalysis: () => Promise<void>;
+  stopAnalysis: () => void;
   navigate: (index: number) => void;
   reset: () => void;
   setDepth: (d: number) => void;
@@ -179,30 +210,40 @@ interface AnalysisContextValue {
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null);
 
+function looksLikeFen(text: string): boolean {
+  return /^[rnbqkpRNBQKP1-8/]+ [wb]/.test(text) && !text.includes('\n');
+}
+
 export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const abortRef = useRef(false);
   const rawInputRef = useRef<string>('');
-  // Tracks workers created during the current analysis so reset() can terminate them
-  const activeWorkersRef = useRef<StockfishService[]>([]);
+  // One controller per analysis run. Every dispatch of a run is guarded by its own
+  // signal, so a cancelled/superseded run can never write into the current state.
+  const runRef = useRef<AbortController | null>(null);
+
+  const cancelRun = useCallback(() => {
+    runRef.current?.abort();
+    runRef.current = null;
+  }, []);
+
+  // Provider unmount: don't leave engines running.
+  useEffect(() => cancelRun, [cancelRun]);
 
   // ── loadGame ─────────────────────────────────────────────────────────
-  const loadGame = useCallback((input: string) => {
-    abortRef.current = true;
+  const loadGame = useCallback((input: string): string | null => {
     const trimmed = input.trim();
-    rawInputRef.current = trimmed;
     let parsed: ReturnType<typeof parsePgn>;
     try {
-      parsed = /^[rnbqkpRNBQKP1-8/]+ [wb]/.test(trimmed) && !trimmed.includes('\n')
-        ? parseFen(trimmed)
-        : parsePgn(trimmed);
+      parsed = looksLikeFen(trimmed) ? parseFen(trimmed) : parsePgn(trimmed);
     } catch (err) {
-      dispatch({ type: 'ERROR', message: (err as Error).message });
-      return;
+      return (err as Error).message;
     }
+    // Only now is it safe to drop the running analysis (bad input must not kill it).
+    cancelRun();
+    rawInputRef.current = trimmed;
     dispatch({
       type: 'GAME_LOADED',
       metadata: parsed.metadata,
@@ -210,158 +251,69 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       sanMoves: parsed.moves,
       gameId: computeGameId(trimmed),
     });
-  }, []);
+    return null;
+  }, [cancelRun]);
 
-  // ── startAnalysis: parallel worker pool ──────────────────────────────
+  // ── startAnalysis ────────────────────────────────────────────────────
   const startAnalysis = useCallback(async () => {
-    const { fens, sanMoves, depth, engineId, workerCount, hashMb } = stateRef.current;
-    if (!fens.length || !sanMoves.length) return;
+    const { fens, sanMoves, depth, engineId, workerCount, hashMb, metadata } = stateRef.current;
+    if (!fens.length) return;
 
-    abortRef.current = false;
+    cancelRun();
+    const controller = new AbortController();
+    runRef.current = controller;
+    const { signal } = controller;
     dispatch({ type: 'ANALYSIS_STARTED' });
 
-    const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0];
+    const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0]!;
     const workerPath = import.meta.env.BASE_URL + cfg.workerPath;
+    const hash = effectiveHashMb(workerCount, hashMb);
 
-    // Each Stockfish WASM instance uses ~80MB base (NNUE weights) + hashMb.
-    // Cap total hash so (base + hash) × workers stays within ~1.5GB.
-    const TOTAL_HASH_BUDGET_MB = 512;
-    const effectiveHashMb = Math.max(16, Math.min(hashMb, Math.floor(TOTAL_HASH_BUDGET_MB / workerCount)));
+    let pool: EnginePool | null = null;
+    try {
+      pool = new EnginePool(() => new StockfishService(workerPath, hash), workerCount, signal);
 
-    // Create N workers
-    const workers = Array.from({ length: workerCount }, () => new StockfishService(workerPath, effectiveHashMb));
-    activeWorkersRef.current = workers;
-
-    const evalCache: (EvalResult | null)[] = new Array(fens.length).fill(null);
-    const bestMoves: (string | null)[] = new Array(fens.length).fill(null);
-    const altMoves: string[][] = new Array(fens.length).fill([]);
-    const altEvals: (EvalResult[])[] = new Array(fens.length).fill([]);
-
-    // Pre-pass: replay moves to detect terminal positions and collect move metadata
-    const moveData: Array<{ color: 'w' | 'b'; uci: string }> = [];
-    {
-      const chessPrepass = new Chess();
-      for (let i = 0; i < sanMoves.length; i++) {
-        const m = chessPrepass.move(sanMoves[i]);
-        moveData.push({ color: m.color, uci: m.lan ?? '' });
-        if (chessPrepass.isGameOver()) {
-          evalCache[i + 1] = chessPrepass.isCheckmate()
-            ? { type: 'mate', value: m.color === 'w' ? 1 : -1 }
-            : { type: 'cp', value: 0 };
-        }
-      }
-    }
-
-    // Positions that need engine analysis (non-terminal)
-    const pendingIndices = fens.map((_, i) => i).filter((i) => evalCache[i] === null);
-
-    // Dispatch moves in order as adjacent pair results become available
-    let nextDispatch = 0;
-    const analyzedMoves: AnalyzedMove[] = [];
-
-    const tryDispatch = () => {
-      while (nextDispatch < sanMoves.length) {
-        const i = nextDispatch;
-        if (evalCache[i] === null || evalCache[i + 1] === null) break;
-
-        const { color, uci } = moveData[i];
-        const evalBefore = evalCache[i];
-        const evalAfter  = evalCache[i + 1];
-
-        const cpLoss = (evalBefore && evalAfter) ? computeCpLoss(evalBefore, evalAfter, color) : 0;
-        const winPctLoss = (evalBefore && evalAfter) ? computeWinPctLoss(evalBefore, evalAfter, color) : 0;
-
-        const alt2Eval = altEvals[i]?.[0] ?? null;
-        const secondBestCpLoss = (evalBefore && alt2Eval) ? computeCpLoss(evalBefore, alt2Eval, color) : 9999;
-        const secondBestWinPctLoss = (evalBefore && alt2Eval) ? computeWinPctLoss(evalBefore, alt2Eval, color) : 9999;
-
-        const classification = classifyMove(winPctLoss, secondBestWinPctLoss, uci, bestMoves[i]);
-
-        const analyzedMove: AnalyzedMove = {
-          moveNumber: Math.floor(i / 2) + 1,
-          color,
-          san: sanMoves[i],
-          uci,
-          fenBefore: fens[i],
-          fenAfter:  fens[i + 1],
-          evalBefore,
-          evalAfter,
-          bestMove: bestMoves[i],
-          bestEval: evalBefore,
-          alternatives: altMoves[i] ?? [],
-          alternativeEvals: altEvals[i] ?? [],
-          classification,
-          cpLoss,
-          secondBestCpLoss,
-        };
-
-        analyzedMoves.push(analyzedMove);
-        dispatch({ type: 'MOVE_ANALYZED', move: analyzedMove });
-        nextDispatch++;
-      }
-    };
-
-    // Run pending positions through the worker pool
-    await new Promise<void>((resolveAll) => {
-      const total = pendingIndices.length;
-      if (total === 0) { resolveAll(); return; }
-
-      let completed = 0;
-      let queueIdx = 0;
-
-      const runNext = (workerIdx: number) => {
-        if (abortRef.current) return;
-        if (queueIdx >= pendingIndices.length) return;
-
-        const posIdx = pendingIndices[queueIdx++];
-        workers[workerIdx].analyze(fens[posIdx], depth, MULTI_PV, (result) => {
-          if (abortRef.current) return;
-
-          evalCache[posIdx] = result.eval;
-          bestMoves[posIdx] = result.bestMove;
-          altMoves[posIdx]  = result.alternatives;
-          altEvals[posIdx]  = result.alternativeEvals;
-
-          tryDispatch();
-
-          if (++completed >= total) {
-            resolveAll();
-          } else {
-            runNext(workerIdx);
-          }
-        });
-      };
-
-      // Seed each worker with its first position
-      for (let w = 0; w < workerCount && w < pendingIndices.length; w++) {
-        runNext(w);
-      }
-    });
-
-    workers.forEach((w) => w.terminate());
-    activeWorkersRef.current = [];
-
-    if (abortRef.current) return;
-
-    const summary = buildSummary(analyzedMoves);
-    dispatch({ type: 'ANALYSIS_DONE', summary });
-
-    const s = stateRef.current;
-    if (s.metadata) {
-      saveAnalysisRecord({
-        gameId: computeGameId(rawInputRef.current),
-        pgn: rawInputRef.current,
-        analyzedAt: Date.now(),
-        depth,
-        engineId,
-        moves: analyzedMoves,
-        summary,
+      const result = await analyzeGame({
         fens,
         sanMoves,
-        metadata: s.metadata,
+        depth,
+        pool,
+        signal,
+        onStage: (stage) => { if (!signal.aborted) dispatch({ type: 'ENGINE_STAGE', stage }); },
+        onMove: (move) => { if (!signal.aborted) dispatch({ type: 'MOVE_ANALYZED', move }); },
       });
+      if (signal.aborted) return;
+
+      const summary = sanMoves.length > 0 ? buildSummary(result.moves) : null;
+      dispatch({ type: 'ANALYSIS_DONE', summary, positionAnalysis: result.lastPosition });
+
+      if (summary && metadata) {
+        saveAnalysisRecord({
+          gameId: computeGameId(rawInputRef.current),
+          pgn: rawInputRef.current,
+          analyzedAt: Date.now(),
+          depth,
+          engineId,
+          moves: result.moves,
+          summary,
+          fens,
+          sanMoves,
+          metadata,
+        });
+      }
+    } catch (err) {
+      if (signal.aborted || isAbortError(err)) return;
+      dispatch({ type: 'ANALYSIS_FAILED', message: (err as Error).message || 'Analiz sırasında bilinmeyen bir hata oluştu.' });
+    } finally {
+      pool?.terminate();
+      if (runRef.current === controller) runRef.current = null;
     }
-  }, []);
+  }, [cancelRun]);
+
+  const stopAnalysis = useCallback(() => {
+    cancelRun();
+    dispatch({ type: 'ANALYSIS_STOPPED' });
+  }, [cancelRun]);
 
   const navigate  = useCallback((index: number) => dispatch({ type: 'NAVIGATE', index }), []);
   const setDepth  = useCallback((d: number)  => dispatch({ type: 'SET_DEPTH', depth: d }), []);
@@ -370,24 +322,20 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const setHashMb      = useCallback((mb: number) => dispatch({ type: 'SET_HASH_MB', mb }), []);
 
   const reset = useCallback(() => {
-    abortRef.current = true;
-    activeWorkersRef.current.forEach((w) => w.terminate());
-    activeWorkersRef.current = [];
+    cancelRun();
     dispatch({ type: 'RESET' });
-  }, []);
+  }, [cancelRun]);
 
   const restoreAnalysis = useCallback((record: AnalysisRecord) => {
-    abortRef.current = true;
-    activeWorkersRef.current.forEach((w) => w.terminate());
-    activeWorkersRef.current = [];
+    cancelRun();
     rawInputRef.current = record.pgn;
     dispatch({ type: 'RESTORE_ANALYSIS', record });
-  }, []);
+  }, [cancelRun]);
 
   const saveCurrentAnalysis = useCallback((): BenchmarkRun | null => {
     const s = stateRef.current;
     if (s.status !== 'done' || !s.summary || !s.metadata || s.moves.length === 0) return null;
-    const cfg = AVAILABLE_ENGINES.find((e) => e.id === s.engineId) ?? AVAILABLE_ENGINES[0];
+    const cfg = AVAILABLE_ENGINES.find((e) => e.id === s.engineId) ?? AVAILABLE_ENGINES[0]!;
     return saveRun({
       gameId: computeGameId(rawInputRef.current),
       engineId: s.engineId,
@@ -402,7 +350,7 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AnalysisContext.Provider value={{
-      state, loadGame, startAnalysis, navigate, reset,
+      state, loadGame, startAnalysis, stopAnalysis, navigate, reset,
       setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis,
     }}>
       {children}
@@ -414,27 +362,4 @@ export function useAnalysis() {
   const ctx = useContext(AnalysisContext);
   if (!ctx) throw new Error('useAnalysis must be inside AnalysisProvider');
   return ctx;
-}
-
-// ── Build summary stats ───────────────────────────────────────────────────
-function buildSummary(moves: AnalyzedMove[]): GameSummaryStats {
-  const build = (side: 'w' | 'b') => {
-    const ms = moves.filter((m) => m.color === side);
-    const count = (cls: string) => ms.filter((m) => m.classification === cls).length;
-    const acpl = computeAcpl(ms);
-    return {
-      kusursuz:   count('kusursuz'),
-      muhtesem:   count('muhtesem'),
-      best:       count('best'),
-      excellent:  count('excellent'),
-      good:       count('good'),
-      inaccuracy: count('inaccuracy'),
-      mistake:    count('mistake'),
-      blunder:    count('blunder'),
-      accuracy:   computeAccuracy(ms),
-      acpl,
-      estimatedElo: estimateElo(acpl),
-    };
-  };
-  return { white: build('w'), black: build('b') };
 }

@@ -1,144 +1,46 @@
-import { Chess } from 'chess.js';
 import { StockfishService } from '../engine/StockfishService';
+import { EnginePool, analyzeGame } from '../engine/analyzeGame';
+import { throwIfAborted } from '../engine/types';
 import { parsePgn } from './pgn';
-import { hasAnalysisRecord, loadAnalysisRecord, saveAnalysisRecord, computeGameId } from './analysisHistory';
-import {
-  classifyMove,
-  computeCpLoss,
-  computeWinPctLoss,
-  computeAccuracy,
-  computeAcpl,
-  estimateElo,
-} from './classification';
+import { loadAnalysisRecord, saveAnalysisRecord, computeGameId } from './analysisHistory';
+import { effectiveHashMb } from './engineConfig';
+import { buildPlayerStats, buildSummary } from './summary';
 import { computePlayerPhaseBreakdown, type PlayerPhaseBreakdown } from './phases';
-import type { AnalyzedMove, PlayerStats, EvalResult } from './types';
+import type { AnalyzedMove, PlayerStats } from './types';
 import type { GameSummary } from './accounts';
-
-const MULTI_PV = 3;
-const TOTAL_HASH_BUDGET_MB = 512;
 
 export interface AccountAnalysisResult {
   username: string;
   gamesAnalyzed: number;
+  /** Games that could not be analysed (unparsable PGN, no moves, user not a player). */
+  skipped: number;
   stats: PlayerStats;
   phaseBreakdown: PlayerPhaseBreakdown;
 }
 
-// ── Single-game engine analysis ───────────────────────────────────────────
-
-async function analyzeGameMoves(
-  pgn: string,
-  enginePath: string,
-  depth: number,
-  workerCount: number,
-  hashMb: number,
-  abort: { aborted: boolean },
-): Promise<AnalyzedMove[]> {
-  let parsed: ReturnType<typeof parsePgn>;
-  try { parsed = parsePgn(pgn); } catch { return []; }
-
-  const { fens, moves: sanMoves } = parsed;
-  const effectiveHashMb = Math.max(16, Math.min(hashMb, Math.floor(TOTAL_HASH_BUDGET_MB / workerCount)));
-  const workers = Array.from({ length: workerCount }, () => new StockfishService(enginePath, effectiveHashMb));
-
-  const evalCache: (EvalResult | null)[] = new Array(fens.length).fill(null);
-  const bestMoves: (string | null)[]  = new Array(fens.length).fill(null);
-  const altMoves: string[][]           = new Array(fens.length).fill([]);
-  const altEvals: (EvalResult[])[]     = new Array(fens.length).fill([]);
-
-  // Pre-pass: mark terminal positions
-  const moveData: Array<{ color: 'w' | 'b'; uci: string }> = [];
-  {
-    const chess = new Chess();
-    for (let i = 0; i < sanMoves.length; i++) {
-      const m = chess.move(sanMoves[i]);
-      moveData.push({ color: m.color, uci: m.lan ?? '' });
-      if (chess.isGameOver()) {
-        evalCache[i + 1] = chess.isCheckmate()
-          ? { type: 'mate', value: m.color === 'w' ? 1 : -1 }
-          : { type: 'cp', value: 0 };
-      }
-    }
-  }
-
-  const pending = fens.map((_, i) => i).filter((i) => evalCache[i] === null);
-
-  await new Promise<void>((resolve) => {
-    if (pending.length === 0 || abort.aborted) { resolve(); return; }
-    let completed = 0;
-    let qi = 0;
-    const runNext = (wi: number) => {
-      if (abort.aborted || qi >= pending.length) return;
-      const posIdx = pending[qi++]!;
-      workers[wi].analyze(fens[posIdx]!, depth, MULTI_PV, (result) => {
-        if (abort.aborted) return;
-        evalCache[posIdx] = result.eval;
-        bestMoves[posIdx] = result.bestMove;
-        altMoves[posIdx]  = result.alternatives;
-        altEvals[posIdx]  = result.alternativeEvals;
-        if (++completed >= pending.length) resolve();
-        else runNext(wi);
-      });
-    };
-    for (let w = 0; w < workerCount && w < pending.length; w++) runNext(w);
-  });
-
-  workers.forEach((w) => w.terminate());
-  if (abort.aborted) return [];
-
-  // Build AnalyzedMove array
-  const analyzedMoves: AnalyzedMove[] = [];
-  for (let i = 0; i < sanMoves.length; i++) {
-    if (!evalCache[i] || !evalCache[i + 1]) continue;
-    const { color, uci } = moveData[i]!;
-    const evalBefore = evalCache[i]!;
-    const evalAfter  = evalCache[i + 1]!;
-    const cpLoss = computeCpLoss(evalBefore, evalAfter, color);
-    const winPctLoss = computeWinPctLoss(evalBefore, evalAfter, color);
-    const alt2   = altEvals[i]?.[0] ?? null;
-    const secondBestCpLoss    = alt2 ? computeCpLoss(evalBefore, alt2, color)     : 9999;
-    const secondBestWinPctLoss = alt2 ? computeWinPctLoss(evalBefore, alt2, color) : 9999;
-    analyzedMoves.push({
-      moveNumber: Math.floor(i / 2) + 1,
-      color,
-      san:           sanMoves[i]!,
-      uci,
-      fenBefore:     fens[i]!,
-      fenAfter:      fens[i + 1]!,
-      evalBefore,
-      evalAfter,
-      bestMove:      bestMoves[i],
-      bestEval:      evalBefore,
-      alternatives:  altMoves[i] ?? [],
-      alternativeEvals: altEvals[i] ?? [],
-      classification: classifyMove(winPctLoss, secondBestWinPctLoss, uci, bestMoves[i]),
-      cpLoss,
-      secondBestCpLoss,
-    });
-  }
-
-  return analyzedMoves;
+export interface AccountProgress {
+  /** Games fully processed so far. */
+  done: number;
+  total: number;
+  /** "White — Black" of the game being analysed, '' between games. */
+  currentGame: string;
+  /** 0–1 overall progress, including the partially analysed current game. */
+  fraction: number;
+  /** Rough time left, or null until one game has been analysed by the engine. */
+  etaMs: number | null;
 }
 
-// ── Helper ────────────────────────────────────────────────────────────────
-
-function buildPlayerStats(moves: AnalyzedMove[]): PlayerStats {
-  if (moves.length === 0) {
-    return { kusursuz: 0, muhtesem: 0, best: 0, excellent: 0, good: 0,
-             inaccuracy: 0, mistake: 0, blunder: 0, accuracy: 0, acpl: 0, estimatedElo: 0 };
-  }
-  const count = (cls: string) => moves.filter((m) => m.classification === cls).length;
-  const acpl = computeAcpl(moves);
-  return {
-    kusursuz: count('kusursuz'), muhtesem: count('muhtesem'), best: count('best'),
-    excellent: count('excellent'), good: count('good'), inaccuracy: count('inaccuracy'),
-    mistake: count('mistake'), blunder: count('blunder'),
-    accuracy: computeAccuracy(moves), acpl, estimatedElo: estimateElo(acpl),
-  };
+/** A stored analysis is reusable only if it is at least as deep and from the same engine. */
+function isReusable(record: { engineId: string; depth: number } | null, engineId: string, depth: number): boolean {
+  return !!record && record.engineId === engineId && record.depth >= depth;
 }
 
-// ── Main export ───────────────────────────────────────────────────────────
-
+/**
+ * Analyses the user's side of every game and aggregates the result.
+ * One engine pool is created lazily and reused for all games.
+ *
+ * Throws an AbortError when `signal` aborts and an EngineError when an engine fails.
+ */
 export async function runAccountAnalysis(
   games: GameSummary[],
   username: string,
@@ -147,59 +49,100 @@ export async function runAccountAnalysis(
   depth: number,
   workerCount: number,
   hashMb: number,
-  onProgress: (done: number, total: number, currentGame: string) => void,
-  abort: { aborted: boolean },
+  onProgress: (p: AccountProgress) => void,
+  signal: AbortSignal,
 ): Promise<AccountAnalysisResult> {
   const allPlayerMoves: AnalyzedMove[] = [];
   let gamesAnalyzed = 0;
+  let skipped = 0;
 
-  for (let i = 0; i < games.length; i++) {
-    if (abort.aborted) break;
+  let pool: EnginePool | null = null;
+  let engineMs = 0;
+  let engineGames = 0;
 
-    const game = games[i]!;
-    const pgn  = game.pgn.trim();
-    const gameLabel = `${game.white} — ${game.black}`;
-    onProgress(i, games.length, gameLabel);
+  const report = (done: number, currentGame: string, gameFraction: number) => {
+    const total = games.length;
+    const remaining = total - done;
+    onProgress({
+      done,
+      total,
+      currentGame,
+      fraction: total > 0 ? Math.min(1, (done + gameFraction) / total) : 0,
+      etaMs: engineGames > 0 ? Math.round((engineMs / engineGames) * Math.max(0, remaining - gameFraction)) : null,
+    });
+  };
 
-    // Determine which side the username played
-    const isWhite = game.white.toLowerCase() === username.toLowerCase();
-    const isBlack = game.black.toLowerCase() === username.toLowerCase();
-    if (!isWhite && !isBlack) { onProgress(i + 1, games.length, ''); continue; }
-    const playerColor: 'w' | 'b' = isWhite ? 'w' : 'b';
+  try {
+    for (let i = 0; i < games.length; i++) {
+      throwIfAborted(signal);
 
-    const gameId = computeGameId(pgn);
-    let allMoves: AnalyzedMove[];
+      const game = games[i]!;
+      const pgn = game.pgn.trim();
+      const label = `${game.white} — ${game.black}`;
+      report(i, label, 0);
 
-    if (hasAnalysisRecord(gameId)) {
-      allMoves = loadAnalysisRecord(gameId)?.moves ?? [];
-    } else {
-      allMoves = await analyzeGameMoves(pgn, enginePath, depth, workerCount, hashMb, abort);
+      // Which side did the user play?
+      const isWhite = game.white.toLowerCase() === username.toLowerCase();
+      const isBlack = game.black.toLowerCase() === username.toLowerCase();
+      if (!isWhite && !isBlack) { skipped++; report(i + 1, '', 0); continue; }
+      const playerColor: 'w' | 'b' = isWhite ? 'w' : 'b';
 
-      if (!abort.aborted && allMoves.length > 0) {
-        try {
-          const p = parsePgn(pgn);
-          const wMoves = allMoves.filter((m) => m.color === 'w');
-          const bMoves = allMoves.filter((m) => m.color === 'b');
-          saveAnalysisRecord({
-            gameId, pgn, analyzedAt: Date.now(), depth, engineId,
-            moves: allMoves,
-            summary: { white: buildPlayerStats(wMoves), black: buildPlayerStats(bMoves) },
-            fens: p.fens, sanMoves: p.moves, metadata: p.metadata,
-          });
-        } catch { /* ignore */ }
+      let parsed: ReturnType<typeof parsePgn>;
+      try {
+        parsed = parsePgn(pgn);
+      } catch {
+        skipped++; report(i + 1, '', 0); continue;
       }
+
+      const gameId = computeGameId(pgn);
+      const stored = loadAnalysisRecord(gameId);
+      let moves: AnalyzedMove[];
+
+      if (stored && isReusable(stored, engineId, depth)) {
+        moves = stored.moves;
+      } else {
+        pool ??= new EnginePool(
+          () => new StockfishService(enginePath, effectiveHashMb(workerCount, hashMb)),
+          workerCount,
+          signal,
+        );
+        const startedAt = Date.now();
+        let movesDone = 0;
+        const result = await analyzeGame({
+          fens: parsed.fens,
+          sanMoves: parsed.moves,
+          depth,
+          pool,
+          signal,
+          onMove: () => {
+            movesDone++;
+            report(i, label, movesDone / Math.max(1, parsed.moves.length));
+          },
+        });
+        engineMs += Date.now() - startedAt;
+        engineGames++;
+        moves = result.moves;
+
+        saveAnalysisRecord({
+          gameId, pgn, analyzedAt: Date.now(), depth, engineId,
+          moves,
+          summary: buildSummary(moves),
+          fens: parsed.fens, sanMoves: parsed.moves, metadata: parsed.metadata,
+        });
+      }
+
+      allPlayerMoves.push(...moves.filter((m) => m.color === playerColor));
+      gamesAnalyzed++;
+      report(i + 1, '', 0);
     }
-
-    if (abort.aborted) break;
-
-    allPlayerMoves.push(...allMoves.filter((m) => m.color === playerColor));
-    gamesAnalyzed++;
-    onProgress(i + 1, games.length, '');
+  } finally {
+    pool?.terminate();
   }
 
   return {
     username,
     gamesAnalyzed,
+    skipped,
     stats: buildPlayerStats(allPlayerMoves),
     phaseBreakdown: computePlayerPhaseBreakdown(allPlayerMoves),
   };

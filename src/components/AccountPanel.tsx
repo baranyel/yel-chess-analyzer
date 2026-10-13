@@ -13,14 +13,24 @@ import {
   computeGameId,
   type AnalysisRecord,
 } from '../lib/analysisHistory';
-import { runAccountAnalysis, type AccountAnalysisResult } from '../lib/accountAnalysis';
+import { runAccountAnalysis, type AccountAnalysisResult, type AccountProgress } from '../lib/accountAnalysis';
 import { AVAILABLE_ENGINES } from '../lib/engines';
+import { isAbortError } from '../engine/types';
 import { useAnalysis } from '../context/AnalysisContext';
 import { AccountAnalysisResultCard } from './AccountAnalysisResultCard';
 
 interface Props {
-  onGameLoad: (pgn: string) => void;
+  /** Returns an error message when the game could not be loaded, else null. */
+  onGameLoad: (pgn: string) => string | null;
   onRestoreAnalysis: (record: AnalysisRecord) => void;
+}
+
+const NO_PROGRESS: AccountProgress = { done: 0, total: 0, currentGame: '', fraction: 0, etaMs: null };
+
+function formatEta(ms: number | null): string | null {
+  if (ms === null) return null;
+  const mins = Math.max(1, Math.round(ms / 60_000));
+  return mins >= 60 ? `~${Math.floor(mins / 60)} sa ${mins % 60} dk` : `~${mins} dk`;
 }
 
 type View = 'list' | 'analyzing' | 'result';
@@ -76,9 +86,9 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
 
   // Account analysis state
   const [view, setView] = useState<View>('list');
-  const [progress, setProgress] = useState({ done: 0, total: 0, currentGame: '' });
+  const [progress, setProgress] = useState<AccountProgress>(NO_PROGRESS);
   const [analysisResult, setAnalysisResult] = useState<AccountAnalysisResult | null>(null);
-  const abortRef = useRef<{ aborted: boolean }>({ aborted: false });
+  const abortRef = useRef<AbortController | null>(null);
 
   const { state: { engineId, depth, workerCount, hashMb } } = useAnalysis();
 
@@ -123,9 +133,12 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
     const trimmed = username.trim();
     if (!trimmed || games.length === 0) return;
 
-    abortRef.current = { aborted: false };
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setError(null);
     setView('analyzing');
-    setProgress({ done: 0, total: games.length, currentGame: '' });
+    setProgress({ ...NO_PROGRESS, total: games.length });
 
     const cfg = AVAILABLE_ENGINES.find((e) => e.id === engineId) ?? AVAILABLE_ENGINES[0]!;
     const enginePath = import.meta.env.BASE_URL + cfg.workerPath;
@@ -139,23 +152,22 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
         depth,
         workerCount,
         hashMb,
-        (done, total, currentGame) => setProgress({ done, total, currentGame }),
-        abortRef.current,
+        (p) => { if (!controller.signal.aborted) setProgress(p); },
+        controller.signal,
       );
 
-      if (!abortRef.current.aborted) {
-        setAnalysisResult(result);
-        setView('result');
-      } else {
-        setView('list');
-      }
-    } catch {
+      if (controller.signal.aborted) return;
+      setAnalysisResult(result);
+      setView('result');
+    } catch (e) {
+      if (controller.signal.aborted || isAbortError(e)) return;
+      setError((e as Error).message || 'Analiz sırasında bir hata oluştu.');
       setView('list');
     }
   };
 
   const handleAbort = () => {
-    abortRef.current.aborted = true;
+    abortRef.current?.abort();
     setView('list');
   };
 
@@ -216,13 +228,14 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
               <div
                 className="h-full transition-all"
                 style={{
-                  width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
+                  width: `${progress.fraction * 100}%`,
                   backgroundColor: 'var(--accent)',
                 }}
               />
             </div>
             <div className="text-[10px] text-faint text-center">
               {progress.done}/{progress.total} maç
+              {formatEta(progress.etaMs) && <> · kalan {formatEta(progress.etaMs)}</>}
             </div>
             {progress.currentGame && (
               <div className="text-[10px] text-muted text-center truncate">
@@ -232,7 +245,7 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
           </div>
           <div className="text-[10px] text-faint text-center leading-relaxed">
             Derinlik {depth} · {workerCount} işçi<br />
-            Bu işlem birkaç dakika sürebilir.
+            Oyun başına dakikalar sürebilir; daha önce analiz edilenler atlanır.
           </div>
           <button
             onClick={handleAbort}
@@ -301,9 +314,9 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis }: Props) {
                     onLoad={() => {
                       if (analyzed) {
                         const record = loadAnalysisRecord(gameId);
-                        if (record) { onRestoreAnalysis(record); return; }
+                        if (record) { setError(null); onRestoreAnalysis(record); return; }
                       }
-                      onGameLoad(game.pgn);
+                      setError(onGameLoad(game.pgn));
                     }}
                   />
                 );

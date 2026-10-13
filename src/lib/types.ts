@@ -14,6 +14,15 @@ export interface EvalResult {
   value: number;  // always from WHITE's perspective (positive = white better)
 }
 
+/** Engine verdict for a single position (scores are White's POV). */
+export interface PositionAnalysis {
+  eval: EvalResult;
+  bestMove: string;               // UCI; '' for a terminal position
+  alternatives: string[];         // UCI moves for lines 2..n
+  alternativeEvals: EvalResult[]; // scores for lines 2..n
+  depth: number;
+}
+
 export interface AnalyzedMove {
   moveNumber: number;
   color: 'w' | 'b';
@@ -24,12 +33,10 @@ export interface AnalyzedMove {
   evalBefore: EvalResult | null;
   evalAfter: EvalResult | null;
   bestMove: string | null;
-  bestEval: EvalResult | null;
   alternatives: string[];
   alternativeEvals: EvalResult[];
   classification: MoveClassification;
   cpLoss: number;
-  secondBestCpLoss: number;   // how much worse the 2nd-best alternative would have been
   commentary?: string;         // placeholder for future LLM commentary
 }
 
