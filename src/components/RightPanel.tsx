@@ -29,9 +29,9 @@ const EXAMPLE_PGN = `[Event "F/S Return Match"]
 type Tab = 'giris' | 'hesap' | 'hamleler' | 'ayarlar' | 'ozet' | 'benchmark';
 
 export function RightPanel() {
-  const { state, loadGame, startAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
+  const { state, loadGame, startAnalysis, stopAnalysis, navigate, setDepth, setEngine, setWorkerCount, setHashMb, saveCurrentAnalysis, restoreAnalysis } = useAnalysis();
   const { prefs, setTheme, setBoardColor, setPieceSet, setBoardSize, setFont } = usePrefs();
-  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId } = state;
+  const { status, moves, sanMoves, currentIndex, totalMoves, analyzedCount, summary, metadata, depth, engineId, workerCount, hashMb, gameId, analysisError, engineStage } = state;
 
   const [pgnText, setPgnText] = useState('');
   const [pgnError, setPgnError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function RightPanel() {
 
   const handleStartAnalysis = () => {
     startAnalysis();
-    setTab('hamleler');
+    if (totalMoves > 0) setTab('hamleler');
   };
 
   const handleSave = () => {
@@ -69,7 +69,7 @@ export function RightPanel() {
     { id: 'hesap',     label: 'Hesap' },
     { id: 'hamleler',  label: 'Hamleler', disabled: !hasGame },
     { id: 'ayarlar',   label: 'Ayarlar' },
-    { id: 'ozet',      label: 'Özet', disabled: !isDone },
+    { id: 'ozet',      label: 'Özet', disabled: !isDone || !summary },
     { id: 'benchmark', label: 'Benchmark' },
   ];
 
@@ -143,7 +143,9 @@ export function RightPanel() {
                   {metadata.white} — {metadata.black}
                 </div>
                 <div className="text-muted">{metadata.event} · {metadata.date}</div>
-                <div className="text-faint">{totalMoves} hamle yüklendi</div>
+                <div className="text-faint">
+                  {totalMoves > 0 ? `${totalMoves} hamle yüklendi` : 'FEN pozisyonu yüklendi'}
+                </div>
               </div>
             )}
           </div>
@@ -165,7 +167,15 @@ export function RightPanel() {
         )}
 
         {/* ── Hamleler ─────────────────────────────────────────────── */}
-        {tab === 'hamleler' && hasGame && (
+        {tab === 'hamleler' && hasGame && totalMoves === 0 && (
+          <div className="flex items-center justify-center flex-1 text-faint text-xs text-center px-6 leading-relaxed">
+            Bu bir FEN pozisyonu, hamle listesi yok.
+            <br />
+            «Pozisyonu Analiz Et» ile motoru çalıştırın; sonuç tahtanın altında görünür.
+          </div>
+        )}
+
+        {tab === 'hamleler' && hasGame && totalMoves > 0 && (
           <div className="flex-1 overflow-hidden">
             <MoveList
               moves={moves}
@@ -482,7 +492,7 @@ export function RightPanel() {
           </div>
         )}
 
-        {tab === 'ozet' && !isDone && (
+        {tab === 'ozet' && !(isDone && summary) && (
           <div className="flex items-center justify-center flex-1 text-faint text-xs">
             Analiz tamamlandığında burada özet görünür.
           </div>
@@ -501,14 +511,33 @@ export function RightPanel() {
       {/* ── Footer ───────────────────────────────────────────────────── */}
       {(status === 'ready' || status === 'done') && (
         <div className="shrink-0 border-t border-base p-3 space-y-2">
+          {analysisError && (
+            <div
+              role="alert"
+              className="px-2.5 py-2 rounded border text-[11px] leading-relaxed"
+              style={{
+                borderColor: 'var(--danger)',
+                color: 'var(--danger)',
+                backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+              }}
+            >
+              <span className="font-semibold">Analiz başarısız: </span>{analysisError}
+            </div>
+          )}
           <button
             onClick={handleStartAnalysis}
             className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
           >
-            {status === 'done' ? 'Yeniden Analiz Et' : 'Analizi Başlat'}
+            {analysisError
+              ? 'Tekrar Dene'
+              : status === 'done'
+                ? 'Yeniden Analiz Et'
+                : totalMoves === 0
+                  ? 'Pozisyonu Analiz Et'
+                  : 'Analizi Başlat'}
           </button>
-          {isDone && (
+          {isDone && summary && (
             <button
               onClick={handleSave}
               disabled={savedFeedback}
@@ -522,9 +551,17 @@ export function RightPanel() {
 
       {isAnalyzing && (
         <div className="shrink-0 border-t border-base p-3 space-y-1.5">
-          <div className="text-xs text-accent text-center animate-pulse">
-            Analiz ediliyor… {analyzedCount}/{totalMoves} hamle
-          </div>
+          {engineStage === 'loading-engine' ? (
+            <div className="text-xs text-accent text-center animate-pulse">
+              Motor yükleniyor… <span className="text-faint">(ilk açılışta büyük dosya indirilir)</span>
+            </div>
+          ) : (
+            <div className="text-xs text-accent text-center animate-pulse">
+              {totalMoves > 0
+                ? `Analiz ediliyor… ${analyzedCount}/${totalMoves} hamle`
+                : 'Pozisyon analiz ediliyor…'}
+            </div>
+          )}
           <div className="h-1 bg-surface-2 rounded overflow-hidden">
             <div
               className="h-full transition-all"
@@ -534,6 +571,12 @@ export function RightPanel() {
               }}
             />
           </div>
+          <button
+            onClick={stopAnalysis}
+            className="w-full py-1.5 rounded-lg text-xs font-semibold border border-base hover-surface transition-colors text-muted"
+          >
+            Durdur
+          </button>
         </div>
       )}
     </div>
