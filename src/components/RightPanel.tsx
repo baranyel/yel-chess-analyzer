@@ -84,7 +84,7 @@ export function RightPanel() {
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* ── Tab bar ──────────────────────────────────────────────────── */}
       <div className="flex border-b border-base shrink-0 bg-surface">
         {tabs.map((t) => (

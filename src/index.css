@@ -4,163 +4,133 @@
 *, *::before, *::after { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: var(--font-family, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(--font-family, Tahoma, Verdana, 'Segoe UI', system-ui, sans-serif);
+  font-size: 14px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   THEME VARIABLES  —  applied via [data-theme="..."] on <html>
+   THEME TOKENS — applied via [data-theme="..."] on <html>
+
+   Two themes: "bliss" (day, the XP wallpaper) and "gece" (night).
+   --bg / --surface / --surface-2 describe what is INSIDE a window:
+     --bg         window body (XP "Luna" beige by day)
+     --surface    tab bars, headers, raised strips inside a window
+     --surface-2  wells: inputs, lists, text areas (white by day)
+   The desktop behind the windows is painted by .desk below.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Default & Soft Dark ──────────────────────────────────────────────────── */
 :root,
-[data-theme="soft-dark"] {
-  --bg:            #1e1e2e;
-  --surface:       #181825;
-  --surface-2:     #24243a;
-  --surface-hover: #2e2e48;
-  --border:        #313244;
-  --border-strong: #45475a;
-  --text:          #cdd6f4;
-  --text-muted:    #a6adc8;
-  --text-faint:    #585b70;
-  --accent:        #89b4fa;
-  --accent-dim:    rgba(137,180,250,.14);
-  --accent-text:   #1e1e2e;
-  --danger:        #f38ba8;
-  --success:       #a6e3a1;
-  --warning:       #f9e2af;
-  --header-shadow: 0 1px 0 var(--border);
-
-  /* Classification text colors — bright enough for dark backgrounds */
-  --clr-kusursuz:   #7dd3fc;
-  --clr-brilliant:  #e879f9;
-  --clr-best:       #22d3ee;
-  --clr-excellent:  #4ade80;
-  --clr-good:       #34d399;
-  --clr-inaccuracy: #facc15;
-  --clr-mistake:    #fb923c;
-  --clr-blunder:    #f87171;
-  --clr-unknown:    #9ca3af;
-
-  /* Elo/accuracy spectrum colors */
-  --clr-elo-5: #22c55e;
-  --clr-elo-4: #84cc16;
-  --clr-elo-3: #eab308;
-  --clr-elo-2: #f97316;
-  --clr-elo-1: #ef4444;
-}
-
-/* Zifiri Karanlık ──────────────────────────────────────────────────────── */
-[data-theme="dark"] {
-  --bg:            #09090b;
-  --surface:       #101012;
-  --surface-2:     #18181b;
-  --surface-hover: #222226;
-  --border:        #27272a;
-  --border-strong: #3f3f46;
-  --text:          #f4f4f5;
-  --text-muted:    #a1a1aa;
-  --text-faint:    #52525b;
-  --accent:        #60a5fa;
-  --accent-dim:    rgba(96,165,250,.12);
-  --accent-text:   #0a0a0f;
-  --danger:        #f87171;
-  --success:       #4ade80;
-  --warning:       #fbbf24;
-  --header-shadow: 0 1px 0 var(--border);
-
-  --clr-kusursuz:   #7dd3fc;
-  --clr-brilliant:  #e879f9;
-  --clr-best:       #22d3ee;
-  --clr-excellent:  #4ade80;
-  --clr-good:       #34d399;
-  --clr-inaccuracy: #facc15;
-  --clr-mistake:    #fb923c;
-  --clr-blunder:    #f87171;
-  --clr-unknown:    #9ca3af;
-
-  --clr-elo-5: #22c55e;
-  --clr-elo-4: #84cc16;
-  --clr-elo-3: #eab308;
-  --clr-elo-2: #f97316;
-  --clr-elo-1: #ef4444;
-}
-
-/* Standart Beyaz ───────────────────────────────────────────────────────── */
-[data-theme="light"] {
-  --bg:            #ffffff;
-  --surface:       #f1f5f9;
-  --surface-2:     #e8edf5;
-  --surface-hover: #dde3ef;
-  --border:        #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text:          #0f172a;
-  --text-muted:    #475569;
-  --text-faint:    #94a3b8;
-  --accent:        #2563eb;
-  --accent-dim:    rgba(37,99,235,.08);
+[data-theme="bliss"] {
+  --bg:            #ece9d8;
+  --surface:       #f6f4e8;
+  --surface-2:     #ffffff;
+  --surface-hover: #dcd8c4;
+  --border:        #aca899;
+  --border-strong: #716f64;
+  --text:          #111418;
+  --text-muted:    #3b4452;
+  --text-faint:    #596170;
+  --accent:        #0a4fc4;        /* XP selection blue: primary actions, links */
+  --accent-dim:    rgba(10, 79, 196, .12);
   --accent-text:   #ffffff;
-  --danger:        #dc2626;
-  --success:       #16a34a;
-  --warning:       #d97706;
+  --hot:           #c4161c;        /* the one hot colour: focus ring, sticker outline */
+  --danger:        #b3150f;
+  --success:       #226b14;
+  --warning:       #8a5a00;
   --header-shadow: 0 1px 0 var(--border);
 
-  /* Classification text colors — darker for light backgrounds */
-  --clr-kusursuz:   #0284c7;
-  --clr-brilliant:  #a21caf;
-  --clr-best:       #0891b2;
-  --clr-excellent:  #16a34a;
-  --clr-good:       #059669;
-  --clr-inaccuracy: #a16207;
-  --clr-mistake:    #c2410c;
-  --clr-blunder:    #dc2626;
-  --clr-unknown:    #6b7280;
+  /* Window chrome */
+  --win-edge:      #0a246a;
+  --title-from:    #0a5bd8;
+  --title-to:      #3d95ff;
+  --title-text:    #ffffff;
+  --win-shadow:    3px 4px 0 rgba(0, 20, 70, .38);
+  --btn-from:      #ffffff;
+  --btn-to:        #d9d5c2;
+
+  /* Desktop (Bliss) */
+  --sky-top:       #2a6bd6;
+  --sky-mid:       #6aa8ee;
+  --sky-low:       #bcdcf7;
+  --cloud:         rgba(255, 255, 255, .92);
+  --hill-top:      #6bb83a;
+  --hill-bottom:   #2f6e1c;
+  --taskbar:       #0a4fc4;
+
+  /* Classification colours — checked for contrast on the beige / white wells */
+  --clr-kusursuz:   #0369a1;
+  --clr-brilliant:  #86198f;
+  --clr-best:       #0e7490;
+  --clr-excellent:  #15803d;
+  --clr-good:       #047857;
+  --clr-inaccuracy: #8a5a00;
+  --clr-mistake:    #b43c0a;
+  --clr-blunder:    #b91c1c;
+  --clr-unknown:    #5d636e;
 
   --clr-elo-5: #15803d;
   --clr-elo-4: #4d7c0f;
   --clr-elo-3: #92400e;
   --clr-elo-2: #9a3412;
   --clr-elo-1: #991b1b;
+
+  --font-pixel: 'Pixelify Sans Variable', Tahoma, Verdana, sans-serif;
 }
 
-/* Göz Dostu Açık (Soft White) ─────────────────────────────────────────── */
-[data-theme="soft-light"] {
-  --bg:            #f8f4ee;
-  --surface:       #efebe3;
-  --surface-2:     #e7e2d8;
-  --surface-hover: #ddd7ca;
-  --border:        #d9d2c7;
-  --border-strong: #c5bcae;
-  --text:          #2d2922;
-  --text-muted:    #7a6e62;
-  --text-faint:    #a8998a;
-  --accent:        #4a6a50;
-  --accent-dim:    rgba(74,106,80,.10);
-  --accent-text:   #ffffff;
-  --danger:        #b44134;
-  --success:       #3a7d44;
-  --warning:       #b05f2a;
+[data-theme="gece"] {
+  --bg:            #1c2a4c;
+  --surface:       #16223f;
+  --surface-2:     #0e1730;
+  --surface-hover: #2a3b66;
+  --border:        #3a4a78;
+  --border-strong: #6577a8;
+  --text:          #eaf0fc;
+  --text-muted:    #b4c0de;
+  --text-faint:    #8b99be;
+  --accent:        #7db3ff;
+  --accent-dim:    rgba(125, 179, 255, .16);
+  --accent-text:   #08142e;
+  --hot:           #ff6a6e;
+  --danger:        #ff8a8a;
+  --success:       #8be08b;
+  --warning:       #f3c969;
   --header-shadow: 0 1px 0 var(--border);
 
-  --clr-kusursuz:   #0369a1;
-  --clr-brilliant:  #86198f;
-  --clr-best:       #0e7490;
-  --clr-excellent:  #15803d;
-  --clr-good:       #047857;
-  --clr-inaccuracy: #92400e;
-  --clr-mistake:    #9a3412;
-  --clr-blunder:    #991b1b;
-  --clr-unknown:    #78716c;
+  --win-edge:      #050b1d;
+  --title-from:    #12306c;
+  --title-to:      #2b5cb0;
+  --title-text:    #ffffff;
+  --win-shadow:    3px 4px 0 rgba(0, 0, 0, .55);
+  --btn-from:      #2a3b66;
+  --btn-to:        #1a2850;
 
-  --clr-elo-5: #15803d;
-  --clr-elo-4: #3f6212;
-  --clr-elo-3: #92400e;
-  --clr-elo-2: #9a3412;
-  --clr-elo-1: #991b1b;
+  --sky-top:       #050d26;
+  --sky-mid:       #14295e;
+  --sky-low:       #3a5d9e;
+  --cloud:         rgba(150, 175, 230, .22);
+  --hill-top:      #1f4a4a;
+  --hill-bottom:   #0b1d26;
+  --taskbar:       #12306c;
+
+  --clr-kusursuz:   #7dd3fc;
+  --clr-brilliant:  #f0a8ff;
+  --clr-best:       #5fe0f2;
+  --clr-excellent:  #6ee79a;
+  --clr-good:       #4fdcb0;
+  --clr-inaccuracy: #f6d44a;
+  --clr-mistake:    #ffa15c;
+  --clr-blunder:    #ff8a8a;
+  --clr-unknown:    #a3adc4;
+
+  --clr-elo-5: #4ade80;
+  --clr-elo-4: #a3e635;
+  --clr-elo-3: #facc15;
+  --clr-elo-2: #fb923c;
+  --clr-elo-1: #f87171;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SEMANTIC CLASSES
+   SEMANTIC CLASSES (kept from the old design so components restyle themselves)
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* Backgrounds */
@@ -188,12 +158,119 @@ body {
 .hover-surface:hover     { background-color: var(--surface-hover); }
 .hover-text-accent:hover { color: var(--accent); }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   DESKTOP — the Bliss wallpaper behind every window
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.desk {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 230px 46px at 14% 17%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 150px 34px at 22% 21%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 280px 54px at 78% 12%, var(--cloud), transparent 72%),
+    radial-gradient(ellipse 190px 38px at 70% 26%, var(--cloud), transparent 72%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 48%, var(--sky-low) 70%);
+  background-color: var(--sky-mid);
+}
+
+/* The hills are an inline <svg> in the Desktop component (it needs var() fills). */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WINDOWS — XP-style chrome. The title bar names the pane's function and can
+   carry that pane's real actions (never decoration).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.win {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--win-edge);
+  border-radius: 7px 7px 3px 3px;
+  box-shadow: var(--win-shadow);
+  overflow: hidden;
+}
+
+.win-title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  color: var(--title-text);
+  background: linear-gradient(180deg, var(--title-to) 0%, var(--title-from) 38%, var(--title-from) 100%);
+  border-bottom: 1px solid var(--win-edge);
+  font-family: var(--font-pixel);
+  font-size: 15px;
+  letter-spacing: .01em;
+  text-shadow: 1px 1px 0 rgba(0, 0, 30, .55);
+  user-select: none;
+}
+.win-title > .win-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Small beveled button that lives in a title bar */
+.win-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 1px 8px;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  text-shadow: none;
+  background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.win-btn:hover { background: rgba(255, 255, 255, .28); }
+.win-btn[aria-pressed="true"] { background: #fff; color: var(--win-edge); }
+
+.win-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Raised XP button for ordinary actions */
+.btn-raised {
+  font: inherit;
+  color: var(--text);
+  background: linear-gradient(180deg, var(--btn-from), var(--btn-to));
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .6) inset;
+  cursor: pointer;
+}
+.btn-raised:hover:not(:disabled) { filter: brightness(1.05); border-color: var(--accent); }
+.btn-raised:active:not(:disabled) { box-shadow: 0 1px 2px rgba(0, 0, 0, .3) inset; }
+.btn-raised:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Primary action: the XP blue */
+.btn-primary {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff), var(--accent));
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, #000);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset;
+  cursor: pointer;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* A die-cut sticker: white paper edge + a hard offset shadow */
+.sticker {
+  filter: drop-shadow(2px 3px 0 rgba(0, 20, 70, .4));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 /* ── Root shell ────────────────────────────────────────────────────────── */
 #root {
   width: 100%;
-  background-color: var(--bg);
   color: var(--text);
-  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
 /* ── Scrollbar (themed) ────────────────────────────────────────────────── */
@@ -201,13 +278,38 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
-*::-webkit-scrollbar        { width: 5px; height: 5px; }
+*::-webkit-scrollbar        { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track  { background: transparent; }
-*::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 9px; }
+*::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 2px; }
 
-/* ── Input / select ────────────────────────────────────────────────────── */
+/* ── Inputs ────────────────────────────────────────────────────────────── */
 input[type=range]           { accent-color: var(--accent); }
 select                      { appearance: none; background-image: none; }
 textarea::placeholder,
 input::placeholder          { color: var(--text-faint); opacity: 1; }
 textarea:focus, input:focus { outline: none; box-shadow: 0 0 0 1px var(--accent); }
+
+/* Keyboard focus is always visible, and it is the hot colour */
+:focus-visible {
+  outline: 2px solid var(--hot);
+  outline-offset: 2px;
+}
+textarea:focus-visible, input:focus-visible { outline: 2px solid var(--hot); outline-offset: 1px; }
+
+/* ── Motion ────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* The board sits on a sticker-paper frame */
+.board-frame {
+  background: #fff;
+  padding: 4px;
+  border-radius: 3px;
+  box-shadow: 2px 3px 0 rgba(0, 20, 70, .4);
+  box-sizing: content-box;
+}

@@ -1,6 +1,6 @@
 // ── Site Themes ───────────────────────────────────────────────────────────
 
-export type ThemeId = 'soft-dark' | 'dark' | 'light' | 'soft-light';
+export type ThemeId = 'bliss' | 'gece';
 
 export interface SiteTheme {
   id: ThemeId;
@@ -9,11 +9,16 @@ export interface SiteTheme {
 }
 
 export const SITE_THEMES: SiteTheme[] = [
-  { id: 'soft-dark',  name: 'Soft Karanlık', hint: 'Göz dostu koyu'   },
-  { id: 'dark',       name: 'Tam Karanlık',  hint: 'Zifiri siyah'     },
-  { id: 'light',      name: 'Beyaz',         hint: 'Standart açık'    },
-  { id: 'soft-light', name: 'Soft Beyaz',    hint: 'Göz dostu açık'   },
+  { id: 'bliss', name: 'Bliss', hint: 'Gündüz, mavi gökyüzü' },
+  { id: 'gece',  name: 'Gece',  hint: 'Koyu, göz yormaz'     },
 ];
+
+/** Maps any stored theme id (including the four pre-redesign ones) to a current one. */
+export function normalizeTheme(id: unknown): ThemeId {
+  if (id === 'bliss' || id === 'gece') return id;
+  if (id === 'soft-dark' || id === 'dark') return 'gece';
+  return 'bliss'; // 'light', 'soft-light', unknown
+}
 
 // ── Board Colors ──────────────────────────────────────────────────────────
 
@@ -70,8 +75,8 @@ export interface FontOption {
 export const FONT_OPTIONS: FontOption[] = [
   {
     id: 'system',
-    name: 'Sistem',
-    stack: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    name: 'Tahoma (XP)',
+    stack: "Tahoma, Verdana, 'Segoe UI', system-ui, sans-serif",
     preview: 'Abc 123',
   },
   {
@@ -108,7 +113,7 @@ export interface AppPrefs {
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
-  theme: 'soft-dark',
+  theme: 'bliss',
   boardColorId: 'classic',
   pieceSetId: 'default',
   boardSize: 100,
@@ -120,7 +125,10 @@ const STORAGE_KEY = 'yelSatranc_prefs_v1';
 export function loadPrefs(): AppPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+    if (raw) {
+      const stored = JSON.parse(raw);
+      return { ...DEFAULT_PREFS, ...stored, theme: normalizeTheme(stored.theme) };
+    }
   } catch { /* ignore */ }
   return { ...DEFAULT_PREFS };
 }
