@@ -173,7 +173,7 @@ export default function App() {
           {metadata
             ? `${metadata.white} — ${metadata.black}`
             : 'Motor destekli satranç analiz aracı'}
-          {metadata?.event && metadata.event !== 'Unknown Event' && (
+          {metadata?.event && metadata.event !== 'Unknown Event' && metadata.event !== '?' && (
             <span className="ml-2 text-faint">· {metadata.event}</span>
           )}
         </div>

@@ -42,11 +42,15 @@ export function parsePgn(pgn: string): ParsedGame {
     throw new Error('PGN hiç hamle içermiyor.');
   }
 
+  // chess.js fills missing tags with PGN's "unknown" placeholder "?".
+  const known = (value: string | null | undefined, fallback: string) =>
+    !value || value === '?' ? fallback : value;
+
   const headers = chess.header();
   const metadata: PgnMetadata = {
-    white:   headers['White']  ?? 'White',
-    black:   headers['Black']  ?? 'Black',
-    event:   headers['Event']  ?? 'Unknown Event',
+    white:   known(headers['White'], 'White'),
+    black:   known(headers['Black'], 'Black'),
+    event:   known(headers['Event'], 'Unknown Event'),
     date:    headers['Date']   ?? '????.??.??',
     result:  headers['Result'] ?? '*',
     whiteElo: headers['WhiteElo'] ?? undefined,

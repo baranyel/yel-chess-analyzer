@@ -12,6 +12,13 @@ describe('parsePgn', () => {
     expect(r.metadata.result).toBe('1-0');
   });
 
+  it('falls back to friendly names when the tags are missing (chess.js reports them as "?")', () => {
+    const r = parsePgn('1. d4 d5');
+    expect(r.metadata.white).toBe('White');
+    expect(r.metadata.black).toBe('Black');
+    expect(r.metadata.event).toBe('Unknown Event');
+  });
+
   it('throws on garbage input', () => {
     expect(() => parsePgn('this is not a pgn')).toThrow();
   });
