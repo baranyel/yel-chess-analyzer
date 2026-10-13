@@ -15,9 +15,26 @@ export function effectiveHashMb(workerCount: number, hashMb: number): number {
   return Math.max(MIN_HASH_MB, Math.min(hashMb, Math.floor(TOTAL_HASH_BUDGET_MB / Math.max(1, workerCount))));
 }
 
+/** Logical CPU cores reported by the browser (4 when it does not say). */
+export function logicalCores(): number {
+  const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0;
+  return cores && cores > 0 ? cores : 4;
+}
+
 /** Half the logical cores (leave room for the UI), between 1 and 4. */
 export function defaultWorkerCount(): number {
   const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined;
   if (!cores || cores < 2) return 1;
   return Math.max(1, Math.min(4, Math.floor(cores / 2)));
+}
+
+const WORKER_CHOICES = [1, 2, 4, 8, 12, 16];
+
+/** Worker counts to offer: those the machine can plausibly run, plus the current selection. */
+export function workerOptions(current: number): number[] {
+  const cores = logicalCores();
+  const options = new Set(WORKER_CHOICES.filter((n) => n <= cores));
+  options.add(1);
+  options.add(current);
+  return [...options].sort((a, b) => a - b);
 }

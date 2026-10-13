@@ -7,7 +7,7 @@ import { BenchmarkPanel } from './BenchmarkPanel';
 import { AccountPanel } from './AccountPanel';
 import { PhaseBreakdown } from './PhaseBreakdown';
 import { AVAILABLE_ENGINES } from '../lib/engines';
-import { effectiveHashMb } from '../lib/engineConfig';
+import { effectiveHashMb, logicalCores, workerOptions } from '../lib/engineConfig';
 import { SITE_THEMES, BOARD_COLORS, PIECE_SETS, FONT_OPTIONS } from '../lib/themes';
 
 const EXAMPLE_PGN = `[Event "F/S Return Match"]
@@ -415,10 +415,10 @@ export function RightPanel() {
                 <div>
                   <div className="text-[10px] text-muted mb-1.5">
                     Paralel İşçi Sayısı
-                    <span className="text-faint ml-1">— daha fazlası daha çok CPU çekirdeği kullanır</span>
+                    <span className="text-faint ml-1">— bu cihazda {logicalCores()} mantıksal çekirdek var</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1">
-                    {([1, 2, 4, 8, 12, 16] as const).map((n) => (
+                    {workerOptions(workerCount).map((n) => (
                       <button
                         key={n}
                         onClick={() => setWorkerCount(n)}
@@ -475,7 +475,7 @@ export function RightPanel() {
                 })()}
 
                 {/* Uyarı */}
-                {(workerCount >= 8 || hashMb >= 512) && (
+                {(workerCount >= logicalCores() || workerCount >= 8 || hashMb >= 512) && (
                   <div className="flex items-start gap-2 px-2.5 py-2 rounded border text-[10px]"
                     style={{ borderColor: 'var(--warning, #f59e0b)', backgroundColor: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)' }}
                   >
