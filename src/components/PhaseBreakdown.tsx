@@ -1,6 +1,7 @@
 import type { AnalyzedMove, PgnMetadata } from '../lib/types';
 import { computePhaseBreakdown, type PhasePlayerStats } from '../lib/phases';
 import { accuracyBg } from '../lib/ui';
+import { SideChip, type Side } from './PlayerTag';
 
 interface Props {
   moves: AnalyzedMove[];
@@ -13,11 +14,14 @@ const PHASE_LABELS = [
   { key: 'endgame'    as const, label: 'Oyun Sonu', range: 'Figür sayısı azaldıktan sonra' },
 ];
 
-function PlayerPhaseStats({ stats, name }: { stats: PhasePlayerStats; name: string }) {
+function PlayerPhaseStats({ stats, name, side }: { stats: PhasePlayerStats; name: string; side: Side }) {
   const empty = stats.moveCount === 0;
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-1 items-center text-center px-1">
-      <div className="text-[10px] text-muted font-semibold truncate w-full">{name}</div>
+      <div className="flex items-center justify-center gap-1 text-[10px] text-muted font-semibold w-full min-w-0">
+        <SideChip side={side} size={10} />
+        <span className="truncate" title={name}>{name}</span>
+      </div>
       {empty ? (
         <span className="text-faint text-[10px]">—</span>
       ) : (
@@ -59,9 +63,9 @@ export function PhaseBreakdown({ moves, metadata }: Props) {
 
             {/* Player columns */}
             <div className="flex gap-2">
-              <PlayerPhaseStats stats={phase.white} name={metadata.white} />
+              <PlayerPhaseStats stats={phase.white} name={metadata.white} side="white" />
               <div className="w-px bg-base shrink-0 self-stretch" />
-              <PlayerPhaseStats stats={phase.black} name={metadata.black} />
+              <PlayerPhaseStats stats={phase.black} name={metadata.black} side="black" />
             </div>
           </div>
         );

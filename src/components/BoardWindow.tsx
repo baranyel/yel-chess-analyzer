@@ -5,6 +5,7 @@ import { usePrefs } from '../context/PrefsContext';
 import { EvalBar } from './EvalBar';
 import { MoveDetail } from './MoveDetail';
 import { NavigationControls } from './NavigationControls';
+import { PlayerBar } from './PlayerTag';
 import { PositionCard } from './PositionCard';
 import { Window } from './Window';
 import { BOARD_COLORS, PIECE_SETS } from '../lib/themes';
@@ -22,6 +23,7 @@ const BEST_MOVE_ARROW_COLOR = 'rgba(34, 197, 94, 0.9)';
 const XL_BREAKPOINT = 1280;
 const SIDE_PANEL_WIDTH = 416;       // analysis window (26rem)
 const BOARD_EXTRAS = 30;            // eval bar (22) + gap (8)
+const PLAYER_BAR_HEIGHT = 24;       // name bar above / below the board
 
 type PieceKey = 'wP' | 'wN' | 'wB' | 'wR' | 'wQ' | 'wK' | 'bP' | 'bN' | 'bB' | 'bR' | 'bQ' | 'bK';
 
@@ -106,8 +108,8 @@ function useBoardSize(percent: number): number {
   const isXl = vp.w >= XL_BREAKPOINT;
   // desk padding + window padding + eval bar + borders
   const maxWidth = isXl ? vp.w - SIDE_PANEL_WIDTH - 40 - 16 - 24 - BOARD_EXTRAS - 2 : vp.w - 24 - 24 - BOARD_EXTRAS - 2;
-  // keep the controls under the board in view on wide screens
-  const maxHeight = isXl ? Math.max(300, vp.h - 340) : Infinity;
+  // keep the controls and both name bars in view on wide screens
+  const maxHeight = isXl ? Math.max(300, vp.h - 340 - 2 * PLAYER_BAR_HEIGHT - 8) : Infinity;
   return Math.max(200, Math.min(wanted, maxWidth, maxHeight));
 }
 
@@ -172,6 +174,13 @@ export function BoardWindow({ className = '' }: { className?: string }) {
 
   const columnWidth = boardSize + BOARD_EXTRAS;
 
+  // Name bars: the side at the bottom of the board is the bottom bar. Not shown for FEN positions.
+  const showPlayers = hasGame && !isFenMode && metadata !== null;
+  const bottomSide = orientation;
+  const topSide = orientation === 'white' ? 'black' : 'white';
+  const toMove = currentFen.split(' ')[1] === 'b' ? 'black' : 'white';
+  const gameOver = boardMoveCount > 0 && currentIndex === boardMoveCount;
+
   return (
     <Window
       title="Tahta"
@@ -194,6 +203,12 @@ export function BoardWindow({ className = '' }: { className?: string }) {
       )}
     >
       <div className="flex flex-col items-center gap-3 p-3 mx-auto" style={{ width: columnWidth + 24 }}>
+        {showPlayers && (
+          <div style={{ width: boardSize, marginLeft: BOARD_EXTRAS }}>
+            <PlayerBar side={topSide} metadata={metadata} active={!gameOver && toMove === topSide} />
+          </div>
+        )}
+
         <div className="flex gap-2 items-stretch" style={{ height: boardSize }}>
           <EvalBar eval_={currentEval} height={boardSize} flipped={orientation === 'black'} />
           <div
@@ -222,6 +237,12 @@ export function BoardWindow({ className = '' }: { className?: string }) {
             )}
           </div>
         </div>
+
+        {showPlayers && (
+          <div style={{ width: boardSize, marginLeft: BOARD_EXTRAS }}>
+            <PlayerBar side={bottomSide} metadata={metadata} active={!gameOver && toMove === bottomSide} />
+          </div>
+        )}
 
         <div style={{ width: columnWidth }}>
           <NavigationControls

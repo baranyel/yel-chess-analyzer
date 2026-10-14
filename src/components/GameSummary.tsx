@@ -3,6 +3,7 @@ import { CLASSIFICATION_STYLES } from '../lib/classification';
 import { headlineEstimate } from '../lib/performance/estimate';
 import { accuracyBg, eloColor } from '../lib/ui';
 import { PerformanceDetails, TimeManagementCard } from './PerformanceDetails';
+import { SIDE_LABELS, SideChip, type Side } from './PlayerTag';
 
 interface Props {
   summary: GameSummaryStats;
@@ -47,11 +48,27 @@ function EloRing({ stats }: { stats: PlayerStats }) {
   );
 }
 
-function SideDetails({ name, stats }: { name: string; stats: PlayerStats }) {
+/** Side colour + name (+ rating) at the head of each summary column. */
+function PlayerHeading({ side, name, rating }: { side: Side; name: string; rating?: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-center gap-1 text-[10px] text-muted">
+        <SideChip side={side} />
+        {SIDE_LABELS[side]}
+      </div>
+      <div className="font-semibold text-xs text-base truncate" title={name}>{name}</div>
+      {rating && <div className="text-[10px] text-muted">({rating})</div>}
+    </div>
+  );
+}
+
+function SideDetails({ side, name, stats }: { side: Side; name: string; stats: PlayerStats }) {
   if (!stats.performance && !stats.timeManagement) return null;
   return (
     <details className="border border-base rounded px-3 py-2">
-      <summary className="text-xs font-semibold text-base cursor-pointer truncate">{name}: performans ve zaman</summary>
+      <summary className="text-xs font-semibold text-base cursor-pointer truncate">
+        <SideChip side={side} /> <span className="ml-1">{name}: performans ve zaman</span>
+      </summary>
       <div className="space-y-3 pt-3">
         {stats.performance && <PerformanceDetails performance={stats.performance} />}
         {stats.timeManagement && (
@@ -84,8 +101,7 @@ export function GameSummary({ summary, metadata }: Props) {
       {/* Players */}
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="space-y-1">
-          <div className="font-semibold text-xs text-base truncate" title={metadata.white}>{metadata.white}</div>
-          {metadata.whiteElo && <div className="text-[10px] text-muted">({metadata.whiteElo})</div>}
+          <PlayerHeading side="white" name={metadata.white} rating={metadata.whiteElo} />
           <AccuracyPill value={summary.white.accuracy} />
           <div className="flex justify-center mt-2">
             <EloRing stats={summary.white} />
@@ -98,8 +114,7 @@ export function GameSummary({ summary, metadata }: Props) {
         </div>
 
         <div className="space-y-1">
-          <div className="font-semibold text-xs text-base truncate" title={metadata.black}>{metadata.black}</div>
-          {metadata.blackElo && <div className="text-[10px] text-muted">({metadata.blackElo})</div>}
+          <PlayerHeading side="black" name={metadata.black} rating={metadata.blackElo} />
           <AccuracyPill value={summary.black.accuracy} />
           <div className="flex justify-center mt-2">
             <EloRing stats={summary.black} />
@@ -139,8 +154,8 @@ export function GameSummary({ summary, metadata }: Props) {
       </div>
 
       <div className="space-y-2 border-t border-base pt-3">
-        <SideDetails name={metadata.white} stats={summary.white} />
-        <SideDetails name={metadata.black} stats={summary.black} />
+        <SideDetails side="white" name={metadata.white} stats={summary.white} />
+        <SideDetails side="black" name={metadata.black} stats={summary.black} />
       </div>
     </div>
   );
