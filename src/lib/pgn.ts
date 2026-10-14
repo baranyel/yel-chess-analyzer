@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import type { PgnMetadata } from './types';
+import type { Platform } from './accounts';
 
 export interface ParsedGame {
   metadata: PgnMetadata;
@@ -63,6 +64,69 @@ export function parsePgn(pgn: string): ParsedGame {
   const moves: string[] = history.map((m) => m.san);
 
   return { metadata, moves, fens };
+}
+
+export interface TimeControl {
+  initial: number;   // seconds
+  increment: number; // seconds
+}
+
+export interface PgnClockInfo {
+  /** Clock left after each ply, in seconds (`[%clk]` comments); null when missing or incomplete. */
+  clocks: number[] | null;
+  /** Parsed `[TimeControl "180+2"]`; null for daily / unknown time controls. */
+  timeControl: TimeControl | null;
+  /** Where the game was played, from the `[Site]` header. */
+  platform: Platform | null;
+  /** Speed class from the time control (Lichess bands), null when unknown. */
+  speed: Speed | null;
+}
+
+export type Speed = 'bullet' | 'blitz' | 'rapid' | 'classical' | 'daily';
+
+/** Lichess speed bands on the estimated game length: initial + 40 × increment. */
+export function speedOf(tc: string | undefined): Speed | null {
+  if (!tc) return null;
+  if (/^\d+\/\d+$/.test(tc)) return 'daily'; // "1/86400" = one move per day
+  const parsed = parseTimeControl(tc);
+  if (!parsed) return null;
+  const est = parsed.initial + 40 * parsed.increment;
+  return est < 179 ? 'bullet' : est < 479 ? 'blitz' : est < 1499 ? 'rapid' : 'classical';
+}
+
+function pgnHeader(pgn: string, name: string): string | undefined {
+  return new RegExp(`\\[\\s*${name}\\s+"([^"]*)"\\s*\\]`, 'i').exec(pgn)?.[1]?.trim();
+}
+
+/** "180+2" → { initial: 180, increment: 2 }; "600" → { 600, 0 }; "-", "1/86400" → null. */
+export function parseTimeControl(tc: string | undefined): TimeControl | null {
+  const m = tc ? /^(\d+)(?:\+(\d+))?$/.exec(tc) : null;
+  if (!m) return null;
+  const initial = Number(m[1]);
+  return initial > 0 ? { initial, increment: Number(m[2] ?? 0) } : null;
+}
+
+/**
+ * Clock data and origin of a game. Lichess (with clocks) and Chess.com PGNs
+ * carry one `[%clk h:mm:ss(.f)]` comment per ply; anything else yields null clocks.
+ * `plies` is the number of moves in the game, used to reject partial clock data.
+ */
+export function parseClockInfo(pgn: string, plies: number): PgnClockInfo {
+  const site = (pgnHeader(pgn, 'Site') ?? '').toLowerCase();
+  const platform = site.includes('lichess.org') ? 'lichess' : site.includes('chess.com') ? 'chesscom' : null;
+  const tcHeader = pgnHeader(pgn, 'TimeControl');
+  const timeControl = parseTimeControl(tcHeader);
+
+  const movetext = pgn.replace(/^\s*\[[^\]]*\]\s*$/gm, '');
+  const clocks = [...movetext.matchAll(/\[%clk\s+(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)\]/g)].map(
+    (m) => Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]),
+  );
+  return {
+    clocks: plies > 0 && clocks.length === plies ? clocks : null,
+    timeControl,
+    platform,
+    speed: speedOf(tcHeader),
+  };
 }
 
 /**

@@ -1,6 +1,8 @@
-import type { GameSummaryStats, PgnMetadata } from '../lib/types';
+import type { GameSummaryStats, PgnMetadata, PlayerStats } from '../lib/types';
 import { CLASSIFICATION_STYLES } from '../lib/classification';
+import { headlineEstimate } from '../lib/performance/estimate';
 import { accuracyBg, eloColor } from '../lib/ui';
+import { PerformanceDetails, TimeManagementCard } from './PerformanceDetails';
 
 interface Props {
   summary: GameSummaryStats;
@@ -18,19 +20,48 @@ function AccuracyPill({ value }: { value: number }) {
   );
 }
 
-function EloRing({ elo }: { elo: number }) {
+function EloRing({ stats }: { stats: PlayerStats }) {
+  if (stats.ratingOutOfScope) {
+    return (
+      <span className="text-[10px] text-faint" title="Modeller blitz, rapid ve klasik maçlarla kalibre edildi">
+        Bullet/günlük maç: tahmin yok
+      </span>
+    );
+  }
+  const head = stats.performance ? headlineEstimate(stats.performance) : null;
+  const elo = head?.rating ?? stats.estimatedElo;
+  if (!elo) return <span className="text-[10px] text-faint">Tahmin için hamle az</span>;
   const color = eloColor(elo);
 
   return (
     <div className="flex flex-col items-center gap-1">
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center text-sm font-bold border-4"
+        className="w-14 h-14 rounded-full flex flex-col items-center justify-center text-sm font-bold border-4"
         style={{ borderColor: color, color }}
       >
-        {elo}
+        <span className="leading-none">{elo}</span>
+        {head && <span className="text-[8px] font-normal text-faint mt-0.5">±{Math.round(1.2816 * head.error)}</span>}
       </div>
-      <span className="text-[10px] text-faint">FIDE tahmini</span>
+      <span className="text-[10px] text-faint" title="Tek maçtan tahmin: geniş hata payı">Performans (tek maç)</span>
     </div>
+  );
+}
+
+function SideDetails({ name, stats }: { name: string; stats: PlayerStats }) {
+  if (!stats.performance && !stats.timeManagement) return null;
+  return (
+    <details className="border border-base rounded px-3 py-2">
+      <summary className="text-xs font-semibold text-base cursor-pointer truncate">{name}: performans ve zaman</summary>
+      <div className="space-y-3 pt-3">
+        {stats.performance && <PerformanceDetails performance={stats.performance} />}
+        {stats.timeManagement && (
+          <div className="border-t border-base pt-3">
+            <p className="section-title text-base mb-2">Zaman yönetimi</p>
+            <TimeManagementCard result={stats.timeManagement} />
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -57,7 +88,7 @@ export function GameSummary({ summary, metadata }: Props) {
           {metadata.whiteElo && <div className="text-[10px] text-muted">({metadata.whiteElo})</div>}
           <AccuracyPill value={summary.white.accuracy} />
           <div className="flex justify-center mt-2">
-            <EloRing elo={summary.white.estimatedElo} />
+            <EloRing stats={summary.white} />
           </div>
           <div className="text-[10px] text-faint">ACPL: {summary.white.acpl}</div>
         </div>
@@ -71,7 +102,7 @@ export function GameSummary({ summary, metadata }: Props) {
           {metadata.blackElo && <div className="text-[10px] text-muted">({metadata.blackElo})</div>}
           <AccuracyPill value={summary.black.accuracy} />
           <div className="flex justify-center mt-2">
-            <EloRing elo={summary.black.estimatedElo} />
+            <EloRing stats={summary.black} />
           </div>
           <div className="text-[10px] text-faint">ACPL: {summary.black.acpl}</div>
         </div>
@@ -105,6 +136,11 @@ export function GameSummary({ summary, metadata }: Props) {
             </div>
           );
         })}
+      </div>
+
+      <div className="space-y-2 border-t border-base pt-3">
+        <SideDetails name={metadata.white} stats={summary.white} />
+        <SideDetails name={metadata.black} stats={summary.black} />
       </div>
     </div>
   );

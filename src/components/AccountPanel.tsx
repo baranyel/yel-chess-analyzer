@@ -49,11 +49,12 @@ function ResultBadge({ result }: { result: string }) {
   );
 }
 
-function GameRow({ game, onLoad, analyzedDepth }: { game: GameSummary; onLoad: () => void; analyzedDepth: number | null }) {
+function GameRow({ game, onLoad, analyzedDepth, index }: { game: GameSummary; onLoad: () => void; analyzedDepth: number | null; index: number }) {
   return (
     <button
       onClick={onLoad}
-      className="w-full text-left flex items-center gap-2 px-2.5 py-2 rounded hover-surface transition-colors border border-transparent hover:border-base"
+      className="list-in w-full text-left flex items-center gap-2 px-2.5 py-2 rounded hover-surface transition-colors border border-transparent hover:border-base"
+      style={{ '--i': index } as React.CSSProperties}
     >
       <ResultBadge result={game.result} />
       <div className="flex-1 min-w-0">
@@ -84,6 +85,8 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
   const [platform, setPlatform] = useState<Platform>('lichess');
   const [username, setUsername] = useState(saved[platform] ?? '');
   const [games, setGames] = useState<GameSummary[]>([]);
+  // More games → narrower rating interval, but a longer account analysis.
+  const [gameCount, setGameCount] = useState<number>(15);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -132,8 +135,8 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
     setView('list');
     try {
       const result = platform === 'lichess'
-        ? await fetchLichessGames(trimmed, 15, force)
-        : await fetchChessComGames(trimmed, 15, force);
+        ? await fetchLichessGames(trimmed, gameCount, force)
+        : await fetchChessComGames(trimmed, gameCount, force);
       if (result.length === 0) {
         setError('Maç bulunamadı.');
       } else {
@@ -227,6 +230,16 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
           style={{ '--tw-ring-color': 'var(--accent)' } as React.CSSProperties}
           disabled={loading || analyzing}
         />
+        <select
+          value={gameCount}
+          onChange={(e) => setGameCount(Number(e.target.value))}
+          disabled={loading || analyzing}
+          aria-label="Getirilecek maç sayısı"
+          title="Daha çok maç, daha dar tahmin aralığı (ama daha uzun analiz)"
+          className="bg-surface-2 border border-base rounded px-1.5 py-1.5 text-xs text-base focus:outline-none focus:border-accent disabled:opacity-40"
+        >
+          {[15, 30, 50].map((n) => <option key={n} value={n}>{n} maç</option>)}
+        </select>
         <button
           onClick={() => handleFetch()}
           disabled={loading || !username.trim() || analyzing}
@@ -341,11 +354,12 @@ export function AccountPanel({ onGameLoad, onRestoreAnalysis, onBusyChange }: Pr
                 </p>
               )}
 
-              {rows.map(({ game, gameId }) => {
+              {rows.map(({ game, gameId }, i) => {
                 const entry = historyIndex.get(gameId);
                 return (
                   <GameRow
                     key={game.id}
+                    index={i}
                     game={game}
                     analyzedDepth={entry ? entry.depth : null}
                     onLoad={() => {

@@ -128,9 +128,3 @@ export function computeAcpl(moves: { cpLoss: number }[]): number {
   if (moves.length === 0) return 0;
   return Math.round(moves.reduce((s, m) => s + m.cpLoss, 0) / moves.length);
 }
-
-// ── FIDE rating estimate from ACPL ───────────────────────────────────────
-export function estimateElo(acpl: number): number {
-  if (acpl <= 0) return 2900;
-  return Math.max(800, Math.min(3000, Math.round(3491 - 403 * Math.log(acpl + 1))));
-}

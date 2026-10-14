@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installMemoryStorage, type MemoryStorage } from '../test/memoryStorage';
 import { makeRecord } from '../test/fixtures';
+import { parseClockInfo } from './pgn';
+import { buildSummary } from './summary';
 import {
   hasAnalysisRecord,
   loadAnalysisRecord,
@@ -25,7 +27,11 @@ describe('analysis history', () => {
     expect(loaded.moves).toEqual(rec.moves);          // incl. fenBefore / fenAfter
     expect(loaded.fens).toEqual(rec.fens);
     expect(loaded.sanMoves).toEqual(rec.sanMoves);
-    expect(loaded.summary).toEqual(rec.summary);
+    // The summary is rebuilt with the game's PGN context (performance, clocks).
+    expect(loaded.summary).toEqual(
+      buildSummary(rec.moves, { metadata: rec.metadata, clockInfo: parseClockInfo(rec.pgn, rec.moves.length) }),
+    );
+    expect(loaded.summary.white.accuracy).toBe(rec.summary.white.accuracy);
     expect(loaded.pgn).toBe(rec.pgn);
     expect(loaded.metadata).toEqual(rec.metadata);
   });

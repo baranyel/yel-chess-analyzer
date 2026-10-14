@@ -1,6 +1,7 @@
 import type { AccountAnalysisResult } from '../lib/accountAnalysis';
 import type { PlayerPhaseBreakdown, PhasePlayerStats } from '../lib/phases';
-import { accuracyBg, eloColor } from '../lib/ui';
+import { accuracyBg } from '../lib/ui';
+import { PerformanceDetails, TimeManagementCard } from './PerformanceDetails';
 
 interface Props {
   result: AccountAnalysisResult;
@@ -22,9 +23,6 @@ function PhaseRow({ label, stats }: { label: string; stats: PhasePlayerStats }) 
           >
             {stats.accuracy}%
           </span>
-          <span className="text-xs font-bold" style={{ color: eloColor(stats.estimatedElo) }}>
-            ~{stats.estimatedElo}
-          </span>
           <span className="text-[10px] text-faint ml-auto">{stats.moveCount} ham</span>
         </>
       )}
@@ -39,8 +37,7 @@ const PHASE_LABELS: Array<{ key: keyof PlayerPhaseBreakdown; label: string }> = 
 ];
 
 export function AccountAnalysisResultCard({ result, onClose }: Props) {
-  const { stats, phaseBreakdown, gamesAnalyzed, skipped, username } = result;
-  const eloClr = eloColor(stats.estimatedElo);
+  const { stats, phaseBreakdown, gamesAnalyzed, skipped, username, performance, timeManagement, outOfScope } = result;
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
@@ -58,46 +55,50 @@ export function AccountAnalysisResultCard({ result, onClose }: Props) {
         )}
       </div>
 
-      {/* Elo ring + accuracy */}
-      <div className="flex items-center gap-4">
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <div
-            className="w-20 h-20 rounded-full flex items-center justify-center text-lg font-bold border-4"
-            style={{ borderColor: eloClr, color: eloClr }}
-          >
-            {stats.estimatedElo}
-          </div>
-          <span className="text-[10px] text-faint">FIDE tahmini</span>
-        </div>
+      {/* Performance estimate */}
+      {outOfScope > 0 && (
+        <p className="text-[10px] text-faint">
+          {outOfScope} bullet veya günlük/yazışmalı maç tahmine katılmadı: modeller blitz, rapid ve klasik maçlarla kalibre edildi.
+        </p>
+      )}
+      {performance.games > 0 && <PerformanceDetails performance={performance} />}
 
-        <div className="flex-1 space-y-2">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted">Doğruluk</span>
-            <span
-              className="font-bold px-2 py-0.5 rounded"
-              style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
-            >
-              {stats.accuracy}%
-            </span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted">Ort. Kayıp (ACPL)</span>
-            <span className="font-bold text-base">{stats.acpl}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted">Toplam Hamle</span>
-            <span className="font-bold text-base">
-              {stats.kusursuz + stats.muhtesem + stats.best + stats.excellent +
-               stats.good + stats.inaccuracy + stats.mistake + stats.blunder}
-            </span>
-          </div>
+      {/* Accuracy */}
+      <div className="space-y-2 border-t border-base pt-3">
+        <div className="flex justify-between text-xs">
+          <span className="text-muted">Doğruluk</span>
+          <span
+            className="font-bold px-2 py-0.5 rounded"
+            style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
+          >
+            {stats.accuracy}%
+          </span>
         </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted">Ort. Kayıp (ACPL)</span>
+          <span className="font-bold text-base">{stats.acpl}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted">Toplam Hamle</span>
+          <span className="font-bold text-base">
+            {stats.kusursuz + stats.muhtesem + stats.best + stats.excellent +
+             stats.good + stats.inaccuracy + stats.mistake + stats.blunder}
+          </span>
+        </div>
+      </div>
+
+      {/* Time management */}
+      <div className="border-t border-base pt-3">
+        <p className="section-title text-base mb-2">Zaman yönetimi</p>
+        {timeManagement
+          ? <TimeManagementCard result={timeManagement} />
+          : <p className="text-[10px] text-faint">Maçlarda saat verisi yok ([%clk]); zaman puanı hesaplanamadı.</p>}
       </div>
 
       {/* Phase breakdown */}
       <div className="border-t border-base pt-3">
         <p className="section-title text-base mb-2">
-          Fazlara göre rating
+          Fazlara göre doğruluk
         </p>
         <div className="divide-y divide-base border border-base rounded overflow-hidden">
           {PHASE_LABELS.map(({ key, label }) => (

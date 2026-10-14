@@ -333,3 +333,30 @@ textarea:focus-visible, input:focus-visible { outline: 2px solid var(--hot); out
   animation: slap .34s cubic-bezier(.2, .9, .3, 1.15) both;
   animation-delay: var(--slap-delay, 0s);
 }
+
+/* Scene change (home ⇄ board) behaves like OS windows: the old one closes, then the new one opens.
+   CLOSE_MS in App.tsx matches the close duration. */
+@keyframes win-close {
+  to { opacity: 0; scale: .92; translate: 0 10px; }
+}
+@keyframes win-open {
+  from { opacity: 0; scale: .92; translate: 0 10px; }
+  to   { opacity: 1; scale: 1; translate: 0 0; }
+}
+.win-closing {
+  animation: win-close .16s cubic-bezier(.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+.win-opening {
+  animation: win-open .22s cubic-bezier(.2, .9, .3, 1.05) both;
+}
+
+/* Fetched game lists fill in row by row, top to bottom. The stagger is capped so long lists don't drag. */
+@keyframes list-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+.list-in {
+  animation: list-in .2s cubic-bezier(.2, .8, .3, 1) both;
+  animation-delay: calc(min(var(--i, 0), 24) * 30ms);
+}

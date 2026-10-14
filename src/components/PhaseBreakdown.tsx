@@ -1,6 +1,6 @@
 import type { AnalyzedMove, PgnMetadata } from '../lib/types';
 import { computePhaseBreakdown, type PhasePlayerStats } from '../lib/phases';
-import { accuracyBg, eloColor } from '../lib/ui';
+import { accuracyBg } from '../lib/ui';
 
 interface Props {
   moves: AnalyzedMove[];
@@ -27,12 +27,6 @@ function PlayerPhaseStats({ stats, name }: { stats: PhasePlayerStats; name: stri
             style={{ backgroundColor: accuracyBg(stats.accuracy), color: '#fff' }}
           >
             {stats.accuracy}%
-          </span>
-          <span
-            className="text-xs font-bold"
-            style={{ color: eloColor(stats.estimatedElo) }}
-          >
-            ~{stats.estimatedElo}
           </span>
           <span className="text-[9px] text-faint">ACPL {stats.acpl}</span>
           <span className="text-[9px] text-faint">{stats.moveCount} hamle</span>

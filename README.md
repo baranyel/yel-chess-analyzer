@@ -55,8 +55,28 @@ Node.js 20 veya üzeri önerilir (CI Node 24 kullanır).
    | > %20 | Gaf |
 
    Motorun seçtiği hamle "En İyi" sayılır; ikinci en iyi hamle en az %10 (Muhteşem) veya %20 (Kusursuz) kaybettiriyorsa o sınıfa yükselir.
-3. **ACPL** (ortalama santipiyon kaybı) hesabında her değerlendirme ±1000 cp'ye kırpılır (mat dahil), böylece tek bir kaçırılmış mat ya da zaten kazanılmış bir pozisyondaki büyük sayılar ortalamayı bozmaz. **Tahmini rating** ACPL'den türetilen kaba bir göstergedir; tek bir maçtan çıkan değer eğlence amaçlıdır.
-4. Üçlü tekrar ve 50 hamle kuralı oyunu bitirmiş sayılmaz (oyuncular devam edebilir); yalnızca mat, pat ve yetersiz materyal sonuç pozisyonudur.
+3. **ACPL** (ortalama santipiyon kaybı) hesabında her değerlendirme ±1000 cp'ye kırpılır (mat dahil), böylece tek bir kaçırılmış mat ya da zaten kazanılmış bir pozisyondaki büyük sayılar ortalamayı bozmaz.
+4. **Performans tahmini** (`src/lib/performance/`) gerçek oyunlarla kalibre edilmiştir ve her zaman %80 aralıkla gösterilir. Üç yöntem vardır:
+   - **Doğruluk**: kitap (ilk 5 hamle), zorunlu ve kararlı pozisyon (|değer| ≥ 400 cp) hamleleri çıkarılır; kalanların Lichess doğruluğu rating'e çevrilir.
+   - **ACPL**: aynı filtreden geçmiş ortalama kayıp.
+   - **Sonuçlar (PR)**: klasik performans rating'i, yani ortalama rakip + 400·log10(S/(1−S)).
+
+   **Birleşik** tahmin, doğruluk ve PR'nin ölçülen hatalara göre ağırlıklı ortalamasıdır. Yalnızca ikisi aynı ölçekteyken hesaplanır.
+
+   **Site dönüşümü (Chess.com ↔ Lichess)**: Doğruluk modeli Lichess rating'leriyle kalibre edildiği için Chess.com hesaplarında doğruluk tahmini Chess.com ölçeğine çevrilir. Dönüşümün kendi hatası aralığa eklenir. Her tahminin yanında diğer sitedeki karşılığı gösterilir.
+
+   Dönüşüm şöyle ölçüldü: iki sitenin 2025–26 blitz ve rapid oyunları aynı motorla analiz edildi (Stockfish 18, derinlik 12). Sonra aynı beklenen doğruluğa karşılık gelen rating'ler eşlendi (`scripts/calibrate/scale.mjs`). Bağımsız, aynı oyuncuların iki sitedeki profillerine dayanan [ChessGoals](https://chessgoals.com/rating-comparison/) tablosuyla blitz'te 500–2000 aralığında 30–60 puan içinde uyuşuyor. Örneğin Chess.com blitz 1000 ≈ Lichess 1386 (ChessGoals 1425). FIDE dönüşümü yok, çünkü FIDE için açık oyun verisi yok.
+
+   Katsayılar ve hata payları `calibration.json`'dadır. Bunlar `scripts/calibrate/` ile üretilir: lichess oyuncularının analizli oyunları üzerinde, oyuncu bazlı çapraz doğrulama kullanılır. Ölçülen hata (RMSE) şöyledir:
+
+   | Maç | Doğruluk | PR | Birleşik |
+   |---|---|---|---|
+   | 1 | ~390 | ~210 | ~200 |
+   | 15 | ~260 | ~170 | ~160 |
+
+   Tek maçtan çıkan değer kabadır.
+5. **Zaman yönetimi puanı** saat verisi (`[%clk]`) olan oyunlarda hesaplanır. Bileşenleri şunlardır: zaman sıkışması, baskı altında hata artışı, 1 saniyeden kısa hamlelerde hata, kritik pozisyonlara ayrılan süre, açılışa harcanan pay ve kullanılmayan süre. Her bileşen benzer rating'deki oyunculara göre yüzdeliğe çevrilir. Rating tahminine dahil değildir: kalibrasyon verisinde bu göstergeler, rating bilindiğinde oyun kalitesini ya da sonucu açıklamıyor.
+6. Üçlü tekrar ve 50 hamle kuralı oyunu bitirmiş sayılmaz (oyuncular devam edebilir); yalnızca mat, pat ve yetersiz materyal sonuç pozisyonudur.
 
 ## Proje yapısı
 
@@ -67,7 +87,8 @@ src/
 │   ├── analyzeGame.ts        # ortak analiz hattı + EnginePool (iptal edilebilir)
 │   └── types.ts              # Engine arayüzü, EngineError, AbortError yardımcıları
 ├── lib/
-│   ├── classification.ts     # kazanma olasılığı, sınıflandırma, ACPL, rating tahmini
+│   ├── classification.ts     # kazanma olasılığı, sınıflandırma, ACPL
+│   ├── performance/          # kalibre rating tahminleri (doğruluk, ACPL, PR, birleşik), zaman yönetimi puanı
 │   ├── pgn.ts                # PGN/FEN ayrıştırma, çok oyunlu dosya bölme
 │   ├── summary.ts            # oyuncu ve oyun istatistikleri
 │   ├── phases.ts             # açılış / orta oyun / oyun sonu
@@ -83,6 +104,7 @@ src/
 ├── context/                  # AnalysisContext (durum + iptal), PrefsContext (tercihler)
 ├── components/               # Desktop, Window, HomeScene, BoardWindow, RightPanel, SettingsPane, EvalGraph, Sticker, …
 └── test/                     # test yardımcıları (bellek içi localStorage, fixture'lar)
+scripts/calibrate/            # kalibrasyon: veri çekme (lichess, chess.com), motorla analiz, deneyler, calibration.json
 public/
 ├── pieces/                   # taş setleri
 ├── stockfish/                # npm paketinden kopyalanır (git'te değil)

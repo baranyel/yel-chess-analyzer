@@ -7,7 +7,6 @@ import {
   computeCpLoss,
   computeWinPctLoss,
   cpToWinPct,
-  estimateElo,
 } from './classification';
 import type { EvalResult } from './types';
 
@@ -46,18 +45,11 @@ describe('computeCpLoss', () => {
   });
 });
 
-describe('ACPL / Elo estimate', () => {
+describe('ACPL', () => {
   it('a single missed mate no longer destroys an otherwise perfect game', () => {
     const loss = computeCpLoss(mate(3), cp(500), 'w');
     const moves = Array.from({ length: 40 }, (_, i) => ({ cpLoss: i === 20 ? loss : 0 }));
-    const acpl = computeAcpl(moves);
-    expect(acpl).toBeLessThan(20);
-    expect(estimateElo(acpl)).toBeGreaterThan(2000);
-  });
-
-  it('is monotonic: more loss never gives a higher Elo', () => {
-    expect(estimateElo(10)).toBeGreaterThan(estimateElo(50));
-    expect(estimateElo(50)).toBeGreaterThan(estimateElo(150));
+    expect(computeAcpl(moves)).toBeLessThan(20);
   });
 
   it('returns 0 ACPL for an empty move list', () => {

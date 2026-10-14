@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useAnalysis } from './context/AnalysisContext';
 import { usePrefs } from './context/PrefsContext';
 import { BoardWindow } from './components/BoardWindow';
@@ -59,9 +60,40 @@ function TopBar() {
   );
 }
 
+type Scene = 'home' | 'board';
+
+/** Keep in sync with .win-closing in index.css. */
+const CLOSE_MS = 160;
+
+/**
+ * Switches scenes like an OS swaps windows: the outgoing window plays its close
+ * animation first, then the incoming one mounts with its open animation.
+ */
+function useSceneTransition(target: Scene) {
+  const [shown, setShown] = useState(target);
+  const [closing, setClosing] = useState(false);
+  const [opened, setOpened] = useState(false); // no open animation on first paint
+
+  useEffect(() => {
+    if (target === shown) { setClosing(false); return; }
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setClosing(true);
+    const t = window.setTimeout(() => {
+      setShown(target);
+      setClosing(false);
+      setOpened(true);
+    }, reduced ? 0 : CLOSE_MS);
+    return () => window.clearTimeout(t);
+  }, [target, shown]);
+
+  const motion = closing ? 'win-closing' : opened ? 'win-opening' : '';
+  return { scene: shown, motion };
+}
+
 export default function App() {
   const { state } = useAnalysis();
-  const hasGame = state.status !== 'idle';
+  const { scene, motion } = useSceneTransition(state.status !== 'idle' ? 'board' : 'home');
+  const hasGame = scene === 'board';
 
   return (
     <Desktop>
@@ -69,8 +101,8 @@ export default function App() {
       <main className="flex-1 min-h-0 overflow-y-auto xl:overflow-hidden p-3 xl:p-5">
         <div className="flex flex-col xl:flex-row gap-4 xl:justify-center xl:h-full">
           {hasGame
-            ? <BoardWindow className="xl:shrink-0 xl:max-h-full" />
-            : <HomeScene className="xl:w-[44rem] xl:h-[min(100%,38rem)] xl:self-center xl:shrink-0" />}
+            ? <BoardWindow key="board" className={`xl:shrink-0 xl:max-h-full ${motion}`} />
+            : <HomeScene key="home" className={`xl:w-[44rem] xl:h-[min(100%,38rem)] xl:self-center xl:shrink-0 ${motion}`} />}
           <Window
             title="Analiz"
             className={`shrink-0 xl:w-[26rem] max-xl:h-[78dvh] max-xl:min-h-[30rem] ${hasGame ? "" : "xl:h-[min(100%,38rem)] xl:self-center"}`}

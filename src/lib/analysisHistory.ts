@@ -1,5 +1,6 @@
 import { computeGameId } from './benchmark';
 import { computeCpLoss } from './classification';
+import { parseClockInfo } from './pgn';
 import { buildSummary } from './summary';
 import type { AnalyzedMove, GameSummaryStats, PgnMetadata } from './types';
 
@@ -101,7 +102,7 @@ function hydrate(s: StoredRecord): AnalysisRecord {
     depth: s.depth,
     engineId: s.engineId,
     moves,
-    summary: buildSummary(moves),
+    summary: buildSummary(moves, { metadata: s.metadata, clockInfo: parseClockInfo(s.pgn, moves.length) }),
     fens: s.fens,
     sanMoves: moves.map((m) => m.san),
     metadata: s.metadata,

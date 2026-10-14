@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlayerStats, buildSummary } from './summary';
+import { buildPlayerStats, buildSummary, scoreFromResult } from './summary';
 import type { AnalyzedMove, MoveClassification } from './types';
 
 function move(color: 'w' | 'b', classification: MoveClassification, cpLoss = 0): AnalyzedMove {
@@ -33,5 +33,15 @@ describe('buildSummary', () => {
     expect(s.white.best).toBe(2);
     expect(s.black.blunder).toBe(1);
     expect(s.black.best).toBe(0);
+  });
+});
+
+describe('scoreFromResult', () => {
+  it('maps PGN results to the player’s score', () => {
+    expect(scoreFromResult('1-0', 'w')).toBe(1);
+    expect(scoreFromResult('1-0', 'b')).toBe(0);
+    expect(scoreFromResult('1/2-1/2', 'b')).toBe(0.5);
+    expect(scoreFromResult('½-½', 'w')).toBe(0.5);
+    expect(scoreFromResult('*', 'w')).toBeNull();
   });
 });

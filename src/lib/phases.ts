@@ -1,12 +1,11 @@
 import type { AnalyzedMove } from './types';
-import { computeAccuracy, computeAcpl, estimateElo } from './classification';
+import { computeAccuracy, computeAcpl } from './classification';
 
 export type GamePhase = 'opening' | 'middlegame' | 'endgame';
 
 export interface PhasePlayerStats {
   accuracy: number;
   acpl: number;
-  estimatedElo: number;
   moveCount: number;
 }
 
@@ -41,13 +40,13 @@ function detectPhase(move: AnalyzedMove): GamePhase {
   return 'middlegame';
 }
 
+// No rating per phase: the rating models are calibrated on whole games, and
+// opening / endgame moves alone are easier, so a per-phase rating is inflated.
 function playerStats(moves: AnalyzedMove[]): PhasePlayerStats {
-  if (moves.length === 0) return { accuracy: 0, acpl: 0, estimatedElo: 0, moveCount: 0 };
-  const acpl = computeAcpl(moves);
+  if (moves.length === 0) return { accuracy: 0, acpl: 0, moveCount: 0 };
   return {
     accuracy: computeAccuracy(moves),
-    acpl,
-    estimatedElo: estimateElo(acpl),
+    acpl: computeAcpl(moves),
     moveCount: moves.length,
   };
 }

@@ -9,7 +9,7 @@ import React, {
 import { StockfishService } from '../engine/StockfishService';
 import { EnginePool, analyzeGame } from '../engine/analyzeGame';
 import { isAbortError, type EngineStage } from '../engine/types';
-import { parsePgn, parseFen } from '../lib/pgn';
+import { parsePgn, parseFen, parseClockInfo } from '../lib/pgn';
 import { AVAILABLE_ENGINES, DEFAULT_ENGINE_ID } from '../lib/engines';
 import { defaultWorkerCount, effectiveHashMb } from '../lib/engineConfig';
 import { buildSummary } from '../lib/summary';
@@ -311,7 +311,11 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       });
       if (signal.aborted) return;
 
-      const summary = sanMoves.length > 0 ? buildSummary(result.moves) : null;
+      const summary = sanMoves.length > 0
+        ? buildSummary(result.moves, metadata
+          ? { metadata, clockInfo: parseClockInfo(rawInputRef.current, sanMoves.length) }
+          : undefined)
+        : null;
       dispatch({ type: 'ANALYSIS_DONE', summary, positionAnalysis: result.lastPosition });
 
       if (summary && metadata) {

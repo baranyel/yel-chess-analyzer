@@ -151,3 +151,21 @@ describe('runAccountAnalysis', () => {
     await expect(run([game('1', 'ann', 'bob')])).rejects.toMatchObject({ name: 'EngineError' });
   });
 });
+
+describe('runAccountAnalysis — performance', () => {
+  it('estimates from results and leaves bullet / daily games out of the estimate', async () => {
+    const games = [
+      { ...game('a', 'ann', 'bob'), whiteElo: 1500, blackElo: 1600, timeControl: 'Blitz' },
+      { ...game('b', 'bob', 'ann'), whiteElo: 1550, blackElo: 1500, timeControl: 'Bullet' },
+      { ...game('c', 'ann', 'cy'), whiteElo: 1500, blackElo: 1400, timeControl: 'Günlük' },
+    ];
+    const r = await run(games);
+    expect(r.gamesAnalyzed).toBe(3);
+    expect(r.outOfScope).toBe(2);
+    expect(r.performance.games).toBe(1);
+    expect(r.performance.platform).toBe('lichess');
+    expect(r.performance.playerRating).toBe(1500);
+    // The PGN result is "*" (unfinished), so there is no score and no results-based rating.
+    expect(r.performance.results).toBeNull();
+  });
+});

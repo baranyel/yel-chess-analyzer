@@ -1,3 +1,6 @@
+import type { PerformanceEstimate } from './performance/estimate';
+import type { TimeManagementResult } from './performance/timeManagement';
+
 export type MoveClassification =
   | 'kusursuz'    // Forced / only good move
   | 'muhtesem'    // Brilliant — complex position, non-obvious best move
@@ -51,7 +54,14 @@ export interface PlayerStats {
   blunder: number;
   accuracy: number;
   acpl: number;            // average centipawn loss
-  estimatedElo: number;    // estimated FIDE rating based on ACPL
+  /** Rating estimate from move accuracy (Lichess scale, calibrated); 0 when too few moves. */
+  estimatedElo: number;
+  /** Single-game performance (results + accuracy); present when the PGN context was known. */
+  performance?: PerformanceEstimate;
+  /** Clock-usage score; null when the PGN has no clock data. */
+  timeManagement?: TimeManagementResult | null;
+  /** Bullet or daily game: outside the calibrated time controls, so no rating estimate. */
+  ratingOutOfScope?: boolean;
 }
 
 export interface GameSummaryStats {

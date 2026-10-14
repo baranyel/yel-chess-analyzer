@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Chess } from 'chess.js';
-import { parseFen, parsePgn } from './pgn';
+import { parseClockInfo, parseFen, parsePgn, parseTimeControl, speedOf } from './pgn';
 import { uciToSan } from './chessUtils';
 
 describe('parsePgn', () => {
@@ -96,5 +96,47 @@ describe('uciToSan', () => {
   it('falls back to the raw UCI text for an illegal or malformed move', () => {
     expect(uciToSan(START, 'e2e5')).toBe('e2e5');
     expect(uciToSan(START, 'xx')).toBe('xx');
+  });
+});
+
+describe('clock info', () => {
+  const lichess = `[Event "Rated Blitz game"]
+[Site "https://lichess.org/abcd1234"]
+[Result "1-0"]
+[TimeControl "180+2"]
+
+1. e4 { [%clk 0:03:00] } 1... e5 { [%clk 0:02:59.5] } 2. Nf3 { [%clk 0:02:58] } 1-0`;
+
+  it('reads per-ply clocks, the time control and the site', () => {
+    expect(parseClockInfo(lichess, 3)).toEqual({
+      clocks: [180, 179.5, 178],
+      timeControl: { initial: 180, increment: 2 },
+      platform: 'lichess',
+      speed: 'blitz',
+    });
+  });
+
+  it('rejects partial clock data and daily games', () => {
+    expect(parseClockInfo(lichess, 4).clocks).toBeNull();
+    const daily = lichess.replace('180+2', '1/86400').replace('lichess.org', 'www.chess.com');
+    expect(parseClockInfo(daily, 3).timeControl).toBeNull();
+    expect(parseClockInfo(daily, 3).platform).toBe('chesscom');
+  });
+
+  it('parses time-control strings', () => {
+    expect(parseTimeControl('600')).toEqual({ initial: 600, increment: 0 });
+    expect(parseTimeControl('-')).toBeNull();
+    expect(parseTimeControl(undefined)).toBeNull();
+  });
+
+  it('classifies speed like Lichess (initial + 40 × increment)', () => {
+    expect(speedOf('60+0')).toBe('bullet');
+    expect(speedOf('120+1')).toBe('bullet'); // 120 + 40 = 160 s
+    expect(speedOf('120+2')).toBe('blitz');  // 200 s
+    expect(speedOf('180+0')).toBe('blitz');
+    expect(speedOf('600+0')).toBe('rapid');
+    expect(speedOf('1800+0')).toBe('classical');
+    expect(speedOf('1/86400')).toBe('daily');
+    expect(speedOf(undefined)).toBeNull();
   });
 });

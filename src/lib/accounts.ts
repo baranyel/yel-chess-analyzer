@@ -19,8 +19,9 @@ interface CacheEntry {
 }
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 saat
-const STORAGE_PREFIX = 'yelSatranc_account_v2_';
-const LEGACY_STORAGE_PREFIX = 'yelSatranc_account_v1_';
+// v3: Lichess PGNs now carry [%clk] comments (time-management score).
+const STORAGE_PREFIX = 'yelSatranc_account_v3_';
+const LEGACY_STORAGE_PREFIXES = ['yelSatranc_account_v1_', 'yelSatranc_account_v2_'];
 const USERNAME_KEY = 'yelSatranc_accountUsernames_v1';
 
 // Only standard-rules time controls; variants (Chess960, Atomic…) cannot be analysed.
@@ -46,13 +47,13 @@ function cacheKey(platform: Platform, username: string, count: number) {
   return `${STORAGE_PREFIX}${platform}_${username.toLowerCase()}_${count}`;
 }
 
-/** The v1 cache ignored the game count and is never read again — free its space. */
+/** Older cache versions are never read again — free their space. */
 function removeLegacyCache(): void {
   try {
     const stale: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith(LEGACY_STORAGE_PREFIX)) stale.push(key);
+      if (key && LEGACY_STORAGE_PREFIXES.some((p) => key.startsWith(p))) stale.push(key);
     }
     stale.forEach((k) => localStorage.removeItem(k));
   } catch { /* ignore */ }
@@ -186,7 +187,7 @@ export async function fetchLichessGames(username: string, max = 15, force = fals
 
   const url =
     `https://lichess.org/api/games/user/${encodeURIComponent(username)}` +
-    `?max=${max}&perfType=${LICHESS_PERF_TYPES}&pgnInJson=true&clocks=false&opening=false`;
+    `?max=${max}&perfType=${LICHESS_PERF_TYPES}&pgnInJson=true&clocks=true&opening=false`;
   const res = await fetch(url, { headers: { Accept: 'application/x-ndjson' } });
 
   if (res.status === 404) throw new Error('Kullanıcı bulunamadı.');
